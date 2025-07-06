@@ -39,14 +39,19 @@ const propertySchema = new mongoose.Schema({
       required: [true, 'Zip code is required'],
       trim: true
     },
-    coordinates: {
-      lat: Number,
-      lng: Number
-    }
+    coordinates: [{
+      type: Number
+    }]
   },
   type: {
     type: String,
     required: [true, 'Property type is required'],
+    enum: ['house', 'apartment', 'condo', 'townhouse', 'villa'],
+    lowercase: true
+  },
+  listingType: {
+    type: String,
+    required: [true, 'Listing type is required'],
     enum: ['sale', 'rent'],
     lowercase: true
   },
@@ -72,18 +77,7 @@ const propertySchema = new mongoose.Schema({
     trim: true
   }],
   images: [{
-    url: {
-      type: String,
-      required: true
-    },
-    alt: {
-      type: String,
-      default: ''
-    },
-    isPrimary: {
-      type: Boolean,
-      default: false
-    }
+    type: String
   }],
   status: {
     type: String,
@@ -108,6 +102,7 @@ const propertySchema = new mongoose.Schema({
 // Indexes for performance optimization
 propertySchema.index({ 'location.city': 1, 'location.state': 1 });
 propertySchema.index({ type: 1, status: 1 });
+propertySchema.index({ listingType: 1, status: 1 });
 propertySchema.index({ price: 1 });
 propertySchema.index({ bedrooms: 1, bathrooms: 1 });
 propertySchema.index({ status: 1, featured: -1, createdAt: -1 });
@@ -133,31 +128,7 @@ propertySchema.virtual('fullAddress').get(function() {
 
 // Virtual for primary image
 propertySchema.virtual('primaryImage').get(function() {
-  const primary = this.images.find(img => img.isPrimary);
-  return primary || this.images[0] || null;
-});
-
-// Pre-save middleware to ensure only one primary image
-propertySchema.pre('save', function(next) {
-  if (this.images && this.images.length > 0) {
-    // If no primary image is set, make the first one primary
-    const hasPrimary = this.images.some(img => img.isPrimary);
-    if (!hasPrimary) {
-      this.images[0].isPrimary = true;
-    }
-    
-    // Ensure only one primary image
-    let primaryCount = 0;
-    this.images.forEach(img => {
-      if (img.isPrimary) {
-        primaryCount++;
-        if (primaryCount > 1) {
-          img.isPrimary = false;
-        }
-      }
-    });
-  }
-  next();
+  return this.images && this.images.length > 0 ? this.images[0] : null;
 });
 
 // Static method for advanced search
@@ -165,6 +136,7 @@ propertySchema.statics.searchProperties = function(filters = {}) {
   const {
     search,
     type,
+    listingType,
     minPrice,
     maxPrice,
     city,
@@ -195,6 +167,11 @@ propertySchema.statics.searchProperties = function(filters = {}) {
     query.type = type;
   }
   
+  // Listing type filter
+  if (listingType) {
+    query.listingType = listingType;
+  }
+  
   // Price range filter
   if (minPrice || maxPrice) {
     query.price = {};
@@ -210,21 +187,21 @@ propertySchema.statics.searchProperties = function(filters = {}) {
     query['location.state'] = new RegExp(state, 'i');
   }
   
-  // Bedroom filter
+  // Bedroom filters
   if (minBedrooms || maxBedrooms) {
     query.bedrooms = {};
     if (minBedrooms) query.bedrooms.$gte = minBedrooms;
     if (maxBedrooms) query.bedrooms.$lte = maxBedrooms;
   }
   
-  // Bathroom filter
+  // Bathroom filters
   if (minBathrooms || maxBathrooms) {
     query.bathrooms = {};
     if (minBathrooms) query.bathrooms.$gte = minBathrooms;
     if (maxBathrooms) query.bathrooms.$lte = maxBathrooms;
   }
   
-  // Area filter
+  // Area filters
   if (minArea || maxArea) {
     query.area = {};
     if (minArea) query.area.$gte = minArea;
@@ -247,22 +224,50 @@ propertySchema.statics.searchProperties = function(filters = {}) {
     .sort(sort)
     .skip(skip)
     .limit(limit)
-    .populate('primaryImage');
+    .exec();
 };
 
 // Static method for getting property statistics
-propertySchema.statics.getStats = function() {
-  return this.aggregate([
+propertySchema.statics.getStats = async function() {
+  const stats = await this.aggregate([
     {
       $group: {
-        _id: '$status',
-        count: { $sum: 1 },
-        avgPrice: { $avg: '$price' },
+        _id: null,
+        totalProperties: { $sum: 1 },
+        averagePrice: { $avg: '$price' },
         minPrice: { $min: '$price' },
-        maxPrice: { $max: '$price' }
+        maxPrice: { $max: '$price' },
+        totalArea: { $sum: '$area' },
+        averageArea: { $avg: '$area' }
       }
     }
   ]);
+  
+  const typeStats = await this.aggregate([
+    {
+      $group: {
+        _id: '$type',
+        count: { $sum: 1 },
+        averagePrice: { $avg: '$price' }
+      }
+    }
+  ]);
+  
+  const listingTypeStats = await this.aggregate([
+    {
+      $group: {
+        _id: '$listingType',
+        count: { $sum: 1 },
+        averagePrice: { $avg: '$price' }
+      }
+    }
+  ]);
+  
+  return {
+    general: stats[0] || {},
+    byType: typeStats,
+    byListingType: listingTypeStats
+  };
 };
 
 module.exports = mongoose.model('Property', propertySchema); 

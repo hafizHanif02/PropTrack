@@ -17,28 +17,25 @@ const clientSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    trim: true,
-    match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
+    trim: true
   },
   message: {
     type: String,
-    required: [true, 'Inquiry message is required'],
     trim: true,
     maxlength: [1000, 'Message cannot exceed 1000 characters']
   },
-  propertyId: {
+  property: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Property',
-    required: [true, 'Property reference is required']
+    ref: 'Property'
   },
   inquiryType: {
     type: String,
-    enum: ['viewing', 'information', 'offer', 'general'],
+    enum: ['buy', 'rent', 'viewing', 'information', 'offer', 'general'],
     default: 'viewing'
   },
   status: {
     type: String,
-    enum: ['new', 'contacted', 'scheduled', 'completed', 'closed'],
+    enum: ['new', 'contacted', 'viewing_scheduled', 'interested', 'not_interested', 'closed'],
     default: 'new'
   },
   priority: {
@@ -66,36 +63,58 @@ const clientSchema = new mongoose.Schema({
       min: [0, 'Budget cannot be negative']
     }
   },
-  requirements: {
+  preferences: {
+    propertyType: [{
+      type: String,
+      enum: ['house', 'apartment', 'condo', 'townhouse', 'villa']
+    }],
     bedrooms: {
-      type: Number,
-      min: [0, 'Bedrooms cannot be negative']
+      min: {
+        type: Number,
+        min: [0, 'Bedrooms cannot be negative']
+      },
+      max: {
+        type: Number,
+        min: [0, 'Bedrooms cannot be negative']
+      }
     },
     bathrooms: {
-      type: Number,
-      min: [0, 'Bathrooms cannot be negative']
+      min: {
+        type: Number,
+        min: [0, 'Bathrooms cannot be negative']
+      },
+      max: {
+        type: Number,
+        min: [0, 'Bathrooms cannot be negative']
+      }
     },
     area: {
-      type: Number,
-      min: [1, 'Area must be at least 1 square foot']
+      min: {
+        type: Number,
+        min: [1, 'Area must be at least 1 square foot']
+      },
+      max: {
+        type: Number,
+        min: [1, 'Area must be at least 1 square foot']
+      }
     },
     amenities: [{
       type: String,
       trim: true
     }],
-    location: {
+    location: [{
       type: String,
       trim: true
-    }
+    }]
   },
-  agentNotes: [{
-    note: {
+  notes: [{
+    content: {
       type: String,
       required: true,
       trim: true,
       maxlength: [500, 'Note cannot exceed 500 characters']
     },
-    createdAt: {
+    timestamp: {
       type: Date,
       default: Date.now
     },
@@ -128,7 +147,7 @@ const clientSchema = new mongoose.Schema({
 // Indexes for performance
 clientSchema.index({ email: 1 });
 clientSchema.index({ phone: 1 });
-clientSchema.index({ propertyId: 1 });
+clientSchema.index({ property: 1 });
 clientSchema.index({ status: 1, priority: -1 });
 clientSchema.index({ createdAt: -1 });
 clientSchema.index({ nextFollowUpAt: 1 });
@@ -200,118 +219,68 @@ clientSchema.pre('save', function(next) {
   next();
 });
 
-// Static method for searching clients
-clientSchema.statics.searchClients = function(filters = {}) {
-  const {
-    search,
-    status,
-    priority,
-    inquiryType,
-    propertyId,
-    source,
-    isActive = true,
-    sort = '-createdAt',
-    page = 1,
-    limit = 20
-  } = filters;
-
-  const query = { isActive };
-  
-  // Text search
-  if (search) {
-    query.$text = { $search: search };
-  }
-  
-  // Status filter
-  if (status) {
-    if (Array.isArray(status)) {
-      query.status = { $in: status };
-    } else {
-      query.status = status;
-    }
-  }
-  
-  // Priority filter
-  if (priority) {
-    if (Array.isArray(priority)) {
-      query.priority = { $in: priority };
-    } else {
-      query.priority = priority;
-    }
-  }
-  
-  // Inquiry type filter
-  if (inquiryType) {
-    query.inquiryType = inquiryType;
-  }
-  
-  // Property filter
-  if (propertyId) {
-    query.propertyId = propertyId;
-  }
-  
-  // Source filter
-  if (source) {
-    query.source = source;
-  }
-  
-  const skip = (page - 1) * limit;
-  
-  return this.find(query)
-    .sort(sort)
-    .skip(skip)
-    .limit(limit)
-    .populate('propertyId', 'title location.address location.city price type');
+// Static method for finding urgent clients
+clientSchema.statics.findUrgent = function(limit = 10) {
+  return this.find({
+    $or: [
+      { priority: 'urgent' },
+      { priority: 'high', status: 'new' },
+      { 
+        priority: 'high', 
+        nextFollowUpAt: { $lte: new Date() }
+      }
+    ],
+    isActive: true
+  })
+  .sort({ priority: -1, createdAt: 1 })
+  .limit(limit)
+  .populate('property', 'title location price')
+  .exec();
 };
 
-// Static method for getting client statistics
-clientSchema.statics.getStats = function() {
-  return this.aggregate([
+// Static method for client statistics
+clientSchema.statics.getStats = async function() {
+  const stats = await this.aggregate([
     {
       $group: {
-        _id: '$status',
-        count: { $sum: 1 },
-        avgDaysSinceInquiry: { 
-          $avg: { 
-            $divide: [
-              { $subtract: [new Date(), '$createdAt'] },
-              1000 * 60 * 60 * 24
-            ]
-          }
+        _id: null,
+        totalClients: { $sum: 1 },
+        activeClients: {
+          $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
+        },
+        newInquiries: {
+          $sum: { $cond: [{ $eq: ['$status', 'new'] }, 1, 0] }
+        },
+        urgentClients: {
+          $sum: { $cond: [{ $eq: ['$priority', 'urgent'] }, 1, 0] }
         }
       }
     }
   ]);
-};
-
-// Static method for getting follow-up reminders
-clientSchema.statics.getFollowUpReminders = function() {
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
   
-  return this.find({
-    nextFollowUpAt: { $lte: today },
-    isActive: true,
-    status: { $nin: ['completed', 'closed'] }
-  })
-  .populate('propertyId', 'title location.address location.city')
-  .sort('nextFollowUpAt');
-};
-
-// Instance method to add agent note
-clientSchema.methods.addAgentNote = function(noteText, important = false) {
-  this.agentNotes.push({
-    note: noteText,
-    important: important,
-    createdAt: new Date()
-  });
-  return this.save();
-};
-
-// Instance method to set next follow-up
-clientSchema.methods.setNextFollowUp = function(date) {
-  this.nextFollowUpAt = date;
-  return this.save();
+  const statusStats = await this.aggregate([
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  const priorityStats = await this.aggregate([
+    {
+      $group: {
+        _id: '$priority',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  return {
+    general: stats[0] || {},
+    byStatus: statusStats,
+    byPriority: priorityStats
+  };
 };
 
 module.exports = mongoose.model('Client', clientSchema); 
