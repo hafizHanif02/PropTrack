@@ -82,6 +82,261 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @desc    Get today's viewings
+// @route   GET /api/viewings/today/list
+// @access  Private (Agent)
+router.get('/today/list', async (req, res) => {
+  try {
+    const viewings = await Viewing.getTodayViewings();
+
+    res.json({
+      success: true,
+      data: viewings
+    });
+  } catch (error) {
+    console.error('Error fetching today viewings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching today\'s viewings',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get upcoming viewings
+// @route   GET /api/viewings/upcoming/list
+// @access  Private (Agent)
+router.get('/upcoming/list', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const viewings = await Viewing.getUpcomingViewings(days);
+
+    res.json({
+      success: true,
+      data: viewings
+    });
+  } catch (error) {
+    console.error('Error fetching upcoming viewings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching upcoming viewings',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get viewing statistics
+// @route   GET /api/viewings/stats/overview
+// @access  Private (Agent)
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const stats = await Viewing.getStats();
+    
+    // Get additional metrics
+    const totalViewings = await Viewing.countDocuments({ isActive: true });
+    const todayViewings = await Viewing.countDocuments({
+      scheduledDate: {
+        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        $lte: new Date(new Date().setHours(23, 59, 59, 999))
+      },
+      isActive: true
+    });
+    const upcomingViewings = await Viewing.countDocuments({
+      scheduledDate: { $gte: new Date() },
+      status: { $in: ['scheduled', 'confirmed'] },
+      isActive: true
+    });
+    const completedViewings = await Viewing.countDocuments({
+      status: 'completed',
+      isActive: true
+    });
+
+    res.json({
+      success: true,
+      data: {
+        total: totalViewings,
+        today: todayViewings,
+        upcoming: upcomingViewings,
+        completed: completedViewings,
+        statusBreakdown: stats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching viewing stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching viewing statistics',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Check availability for viewing
+// @route   POST /api/viewings/availability
+// @access  Public
+router.post('/availability', async (req, res) => {
+  try {
+    const { propertyId, scheduledDate, scheduledTime, duration = 60 } = req.body;
+    
+    if (!propertyId || !scheduledDate || !scheduledTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Property ID, scheduled date, and time are required'
+      });
+    }
+
+    const date = new Date(scheduledDate);
+    date.setHours(scheduledTime.hour, scheduledTime.minute, 0, 0);
+    const endTime = new Date(date.getTime() + (duration * 60 * 1000));
+
+    // Check for conflicts
+    const conflictingViewings = await Viewing.find({
+      propertyId,
+      status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+      isActive: true,
+      scheduledDate: {
+        $gte: new Date(date.getTime() - (duration * 60 * 1000)),
+        $lte: endTime
+      }
+    });
+
+    const isAvailable = conflictingViewings.length === 0;
+
+    res.json({
+      success: true,
+      data: {
+        available: isAvailable,
+        conflicts: conflictingViewings.length,
+        suggestedTimes: isAvailable ? [] : await getSuggestedTimes(propertyId, scheduledDate)
+      }
+    });
+  } catch (error) {
+    console.error('Error checking availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking viewing availability',
+      error: error.message
+    });
+  }
+});
+
+// Helper function to get suggested times
+const getSuggestedTimes = async (propertyId, date) => {
+  const suggestedTimes = [];
+  const baseDate = new Date(date);
+  
+  // Generate time slots from 9 AM to 6 PM
+  for (let hour = 9; hour <= 18; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const timeSlot = new Date(baseDate);
+      timeSlot.setHours(hour, minute, 0, 0);
+      
+      // Check if this time slot is available
+      const conflicts = await Viewing.find({
+        propertyId,
+        status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+        isActive: true,
+        scheduledDate: {
+          $gte: new Date(timeSlot.getTime() - (60 * 60 * 1000)), // 1 hour buffer
+          $lte: new Date(timeSlot.getTime() + (60 * 60 * 1000))
+        }
+      });
+      
+      if (conflicts.length === 0) {
+        suggestedTimes.push({
+          hour,
+          minute,
+          formatted: timeSlot.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit',
+            hour12: true 
+          })
+        });
+      }
+      
+      // Limit to 5 suggestions
+      if (suggestedTimes.length >= 5) break;
+    }
+    if (suggestedTimes.length >= 5) break;
+  }
+  
+  return suggestedTimes;
+};
+
+// @desc    Get viewings by property
+// @route   GET /api/viewings/property/:propertyId
+// @access  Private (Agent)
+router.get('/property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { status, limit = 10 } = req.query;
+
+    const query = { 
+      propertyId, 
+      isActive: true 
+    };
+    
+    if (status) {
+      query.status = status;
+    }
+
+    const viewings = await Viewing.find(query)
+      .sort('-scheduledDate')
+      .limit(parseInt(limit))
+      .populate('clientId', 'name email phone')
+      .populate('propertyId', 'title location.address location.city price type');
+
+    res.json({
+      success: true,
+      data: viewings
+    });
+  } catch (error) {
+    console.error('Error fetching viewings by property:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching viewings for property',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get viewings by client
+// @route   GET /api/viewings/client/:clientId
+// @access  Private (Agent)
+router.get('/client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { status, limit = 10 } = req.query;
+
+    const query = { 
+      clientId, 
+      isActive: true 
+    };
+    
+    if (status) {
+      query.status = status;
+    }
+
+    const viewings = await Viewing.find(query)
+      .sort('-scheduledDate')
+      .limit(parseInt(limit))
+      .populate('propertyId', 'title location.address location.city price type')
+      .populate('clientId', 'name email phone');
+
+    res.json({
+      success: true,
+      data: viewings
+    });
+  } catch (error) {
+    console.error('Error fetching viewings by client:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching viewings for client',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get single viewing
 // @route   GET /api/viewings/:id
 // @access  Private (Agent)
@@ -114,7 +369,7 @@ router.get('/:id', async (req, res) => {
 
 // @desc    Create new viewing
 // @route   POST /api/viewings
-// @access  Private (Agent)
+// @access  Public (Inquiry form)
 router.post('/', async (req, res) => {
   try {
     // Validate property exists
@@ -324,7 +579,7 @@ router.patch('/:id/reschedule', async (req, res) => {
   }
 });
 
-// @desc    Add agent note to viewing
+// @desc    Add notes to viewing
 // @route   POST /api/viewings/:id/notes
 // @access  Private (Agent)
 router.post('/:id/notes', async (req, res) => {
@@ -369,261 +624,6 @@ router.post('/:id/notes', async (req, res) => {
     });
   }
 });
-
-// @desc    Get today's viewings
-// @route   GET /api/viewings/today
-// @access  Private (Agent)
-router.get('/today/list', async (req, res) => {
-  try {
-    const viewings = await Viewing.getTodayViewings();
-
-    res.json({
-      success: true,
-      data: viewings
-    });
-  } catch (error) {
-    console.error('Error fetching today viewings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching today\'s viewings',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get upcoming viewings
-// @route   GET /api/viewings/upcoming
-// @access  Private (Agent)
-router.get('/upcoming/list', async (req, res) => {
-  try {
-    const days = parseInt(req.query.days) || 7;
-    const viewings = await Viewing.getUpcomingViewings(days);
-
-    res.json({
-      success: true,
-      data: viewings
-    });
-  } catch (error) {
-    console.error('Error fetching upcoming viewings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching upcoming viewings',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get viewing statistics
-// @route   GET /api/viewings/stats
-// @access  Private (Agent)
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const stats = await Viewing.getStats();
-    
-    // Get additional metrics
-    const totalViewings = await Viewing.countDocuments({ isActive: true });
-    const todayViewings = await Viewing.countDocuments({
-      scheduledDate: {
-        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        $lte: new Date(new Date().setHours(23, 59, 59, 999))
-      },
-      isActive: true
-    });
-    const upcomingViewings = await Viewing.countDocuments({
-      scheduledDate: { $gte: new Date() },
-      status: { $in: ['scheduled', 'confirmed'] },
-      isActive: true
-    });
-    const completedViewings = await Viewing.countDocuments({
-      status: 'completed',
-      isActive: true
-    });
-
-    res.json({
-      success: true,
-      data: {
-        total: totalViewings,
-        today: todayViewings,
-        upcoming: upcomingViewings,
-        completed: completedViewings,
-        statusBreakdown: stats
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching viewing stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching viewing statistics',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get viewings by property
-// @route   GET /api/viewings/property/:propertyId
-// @access  Private (Agent)
-router.get('/property/:propertyId', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    const { status, limit = 10 } = req.query;
-
-    const query = { 
-      propertyId, 
-      isActive: true 
-    };
-    
-    if (status) {
-      query.status = status;
-    }
-
-    const viewings = await Viewing.find(query)
-      .sort('-scheduledDate')
-      .limit(parseInt(limit))
-      .populate('clientId', 'name email phone')
-      .populate('propertyId', 'title location.address location.city price type');
-
-    res.json({
-      success: true,
-      data: viewings
-    });
-  } catch (error) {
-    console.error('Error fetching viewings by property:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching viewings for property',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get viewings by client
-// @route   GET /api/viewings/client/:clientId
-// @access  Private (Agent)
-router.get('/client/:clientId', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { status, limit = 10 } = req.query;
-
-    const query = { 
-      clientId, 
-      isActive: true 
-    };
-    
-    if (status) {
-      query.status = status;
-    }
-
-    const viewings = await Viewing.find(query)
-      .sort('-scheduledDate')
-      .limit(parseInt(limit))
-      .populate('propertyId', 'title location.address location.city price type')
-      .populate('clientId', 'name email phone');
-
-    res.json({
-      success: true,
-      data: viewings
-    });
-  } catch (error) {
-    console.error('Error fetching viewings by client:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching viewings for client',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Check viewing availability
-// @route   POST /api/viewings/availability
-// @access  Private (Agent)
-router.post('/availability', async (req, res) => {
-  try {
-    const { propertyId, scheduledDate, scheduledTime, duration = 60 } = req.body;
-    
-    if (!propertyId || !scheduledDate || !scheduledTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Property ID, scheduled date, and time are required'
-      });
-    }
-
-    const date = new Date(scheduledDate);
-    date.setHours(scheduledTime.hour, scheduledTime.minute, 0, 0);
-    const endTime = new Date(date.getTime() + (duration * 60 * 1000));
-
-    // Check for conflicts
-    const conflictingViewings = await Viewing.find({
-      propertyId,
-      status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
-      isActive: true,
-      scheduledDate: {
-        $gte: new Date(date.getTime() - (duration * 60 * 1000)),
-        $lte: endTime
-      }
-    });
-
-    const isAvailable = conflictingViewings.length === 0;
-
-    res.json({
-      success: true,
-      data: {
-        available: isAvailable,
-        conflicts: conflictingViewings.length,
-        suggestedTimes: isAvailable ? [] : await getSuggestedTimes(propertyId, scheduledDate)
-      }
-    });
-  } catch (error) {
-    console.error('Error checking availability:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking viewing availability',
-      error: error.message
-    });
-  }
-});
-
-// Helper function to get suggested times
-const getSuggestedTimes = async (propertyId, date) => {
-  const suggestedTimes = [];
-  const baseDate = new Date(date);
-  
-  // Generate time slots from 9 AM to 6 PM
-  for (let hour = 9; hour <= 18; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      const timeSlot = new Date(baseDate);
-      timeSlot.setHours(hour, minute, 0, 0);
-      
-      // Check if this time slot is available
-      const conflicts = await Viewing.find({
-        propertyId,
-        status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
-        isActive: true,
-        scheduledDate: {
-          $gte: new Date(timeSlot.getTime() - (60 * 60 * 1000)), // 1 hour buffer
-          $lte: new Date(timeSlot.getTime() + (60 * 60 * 1000))
-        }
-      });
-      
-      if (conflicts.length === 0) {
-        suggestedTimes.push({
-          hour,
-          minute,
-          formatted: timeSlot.toLocaleTimeString('en-US', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true 
-          })
-        });
-      }
-      
-      // Limit to 5 suggestions
-      if (suggestedTimes.length >= 5) break;
-    }
-    if (suggestedTimes.length >= 5) break;
-  }
-  
-  return suggestedTimes;
-};
 
 // @desc    Cancel viewing
 // @route   PATCH /api/viewings/:id/cancel

@@ -72,6 +72,138 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @desc    Get client statistics
+// @route   GET /api/clients/stats/overview
+// @access  Private (Agent)
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const stats = await Client.getStats();
+    
+    // Get additional metrics
+    const totalClients = await Client.countDocuments({ isActive: true });
+    const newInquiries = await Client.countDocuments({ 
+      status: 'new', 
+      isActive: true 
+    });
+    const urgentClients = await Client.countDocuments({ 
+      priority: 'urgent', 
+      isActive: true 
+    });
+    const todayInquiries = await Client.countDocuments({
+      createdAt: {
+        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        $lte: new Date(new Date().setHours(23, 59, 59, 999))
+      },
+      isActive: true
+    });
+
+    res.json({
+      success: true,
+      data: {
+        total: totalClients,
+        new: newInquiries,
+        urgent: urgentClients,
+        todayInquiries,
+        statusBreakdown: stats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching client stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching client statistics',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get clients with due follow-ups
+// @route   GET /api/clients/followups/due
+// @access  Private (Agent)
+router.get('/followups/due', async (req, res) => {
+  try {
+    const followUps = await Client.getFollowUpReminders();
+
+    res.json({
+      success: true,
+      data: followUps
+    });
+  } catch (error) {
+    console.error('Error fetching follow-ups:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching follow-up reminders',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get clients by property
+// @route   GET /api/clients/property/:propertyId
+// @access  Private (Agent)
+router.get('/property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { status, limit = 10 } = req.query;
+
+    const query = { 
+      propertyId, 
+      isActive: true 
+    };
+    
+    if (status) {
+      query.status = status;
+    }
+
+    const clients = await Client.find(query)
+      .sort('-createdAt')
+      .limit(parseInt(limit))
+      .populate('propertyId', 'title location.address location.city price type');
+
+    res.json({
+      success: true,
+      data: clients
+    });
+  } catch (error) {
+    console.error('Error fetching clients by property:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching clients for property',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get urgent clients
+// @route   GET /api/clients/urgent/list
+// @access  Private (Agent)
+router.get('/urgent/list', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const urgentClients = await Client.find({
+      priority: { $in: ['high', 'urgent'] },
+      status: { $nin: ['completed', 'closed'] },
+      isActive: true
+    })
+    .sort('-priority -createdAt')
+    .limit(limit)
+    .populate('propertyId', 'title location.address location.city price type');
+
+    res.json({
+      success: true,
+      data: urgentClients
+    });
+  } catch (error) {
+    console.error('Error fetching urgent clients:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching urgent clients',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get single client
 // @route   GET /api/clients/:id
 // @access  Private (Agent)
@@ -365,138 +497,6 @@ router.patch('/:id/followup', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error setting follow-up date',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get client statistics
-// @route   GET /api/clients/stats
-// @access  Private (Agent)
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const stats = await Client.getStats();
-    
-    // Get additional metrics
-    const totalClients = await Client.countDocuments({ isActive: true });
-    const newInquiries = await Client.countDocuments({ 
-      status: 'new', 
-      isActive: true 
-    });
-    const urgentClients = await Client.countDocuments({ 
-      priority: 'urgent', 
-      isActive: true 
-    });
-    const todayInquiries = await Client.countDocuments({
-      createdAt: {
-        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        $lte: new Date(new Date().setHours(23, 59, 59, 999))
-      },
-      isActive: true
-    });
-
-    res.json({
-      success: true,
-      data: {
-        total: totalClients,
-        new: newInquiries,
-        urgent: urgentClients,
-        todayInquiries,
-        statusBreakdown: stats
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching client stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching client statistics',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get follow-up reminders
-// @route   GET /api/clients/followups
-// @access  Private (Agent)
-router.get('/followups/due', async (req, res) => {
-  try {
-    const followUps = await Client.getFollowUpReminders();
-
-    res.json({
-      success: true,
-      data: followUps
-    });
-  } catch (error) {
-    console.error('Error fetching follow-ups:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching follow-up reminders',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get clients by property
-// @route   GET /api/clients/property/:propertyId
-// @access  Private (Agent)
-router.get('/property/:propertyId', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    const { status, limit = 10 } = req.query;
-
-    const query = { 
-      propertyId, 
-      isActive: true 
-    };
-    
-    if (status) {
-      query.status = status;
-    }
-
-    const clients = await Client.find(query)
-      .sort('-createdAt')
-      .limit(parseInt(limit))
-      .populate('propertyId', 'title location.address location.city price type');
-
-    res.json({
-      success: true,
-      data: clients
-    });
-  } catch (error) {
-    console.error('Error fetching clients by property:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching clients for property',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get urgent clients
-// @route   GET /api/clients/urgent
-// @access  Private (Agent)
-router.get('/urgent/list', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    
-    const urgentClients = await Client.find({
-      priority: { $in: ['high', 'urgent'] },
-      status: { $nin: ['completed', 'closed'] },
-      isActive: true
-    })
-    .sort('-priority -createdAt')
-    .limit(limit)
-    .populate('propertyId', 'title location.address location.city price type');
-
-    res.json({
-      success: true,
-      data: urgentClients
-    });
-  } catch (error) {
-    console.error('Error fetching urgent clients:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching urgent clients',
       error: error.message
     });
   }

@@ -112,6 +112,69 @@ router.get('/', async (req, res) => {
   }
 });
 
+// @desc    Get property statistics
+// @route   GET /api/properties/stats/overview
+// @access  Private (Agent)
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const stats = await Property.getStats();
+    
+    // Get additional metrics
+    const totalProperties = await Property.countDocuments();
+    const activeProperties = await Property.countDocuments({ status: 'active' });
+    const featuredProperties = await Property.countDocuments({ featured: true });
+    const avgPrice = await Property.aggregate([
+      { $group: { _id: null, avgPrice: { $avg: '$price' } } }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total: totalProperties,
+        active: activeProperties,
+        featured: featuredProperties,
+        averagePrice: avgPrice[0]?.avgPrice || 0,
+        statusBreakdown: stats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching property stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching property statistics',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get featured properties
+// @route   GET /api/properties/featured/list
+// @access  Public
+router.get('/featured/list', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 6;
+    
+    const properties = await Property.find({ 
+      featured: true, 
+      status: 'active' 
+    })
+    .sort('-createdAt')
+    .limit(limit);
+
+    res.json({
+      success: true,
+      data: properties
+    });
+  } catch (error) {
+    console.error('Error fetching featured properties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching featured properties',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get single property
 // @route   GET /api/properties/:id
 // @access  Public
@@ -135,6 +198,52 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching property',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get similar properties
+// @route   GET /api/properties/:id/similar
+// @access  Public
+router.get('/:id/similar', async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+    
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+
+    const limit = parseInt(req.query.limit) || 4;
+    
+    // Find similar properties based on type, location, and price range
+    const priceRange = property.price * 0.3; // 30% price range
+    
+    const similarProperties = await Property.find({
+      _id: { $ne: property._id },
+      type: property.type,
+      'location.city': property.location.city,
+      price: {
+        $gte: property.price - priceRange,
+        $lte: property.price + priceRange
+      },
+      status: 'active'
+    })
+    .limit(limit)
+    .sort('-createdAt');
+
+    res.json({
+      success: true,
+      data: similarProperties
+    });
+  } catch (error) {
+    console.error('Error fetching similar properties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching similar properties',
       error: error.message
     });
   }
@@ -320,115 +429,6 @@ router.patch('/:id/featured', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating featured status',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get property statistics
-// @route   GET /api/properties/stats
-// @access  Private (Agent)
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const stats = await Property.getStats();
-    
-    // Get additional metrics
-    const totalProperties = await Property.countDocuments();
-    const activeProperties = await Property.countDocuments({ status: 'active' });
-    const featuredProperties = await Property.countDocuments({ featured: true });
-    const avgPrice = await Property.aggregate([
-      { $group: { _id: null, avgPrice: { $avg: '$price' } } }
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        total: totalProperties,
-        active: activeProperties,
-        featured: featuredProperties,
-        averagePrice: avgPrice[0]?.avgPrice || 0,
-        statusBreakdown: stats
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching property stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching property statistics',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get featured properties
-// @route   GET /api/properties/featured
-// @access  Public
-router.get('/featured/list', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 6;
-    
-    const properties = await Property.find({ 
-      featured: true, 
-      status: 'active' 
-    })
-    .sort('-createdAt')
-    .limit(limit);
-
-    res.json({
-      success: true,
-      data: properties
-    });
-  } catch (error) {
-    console.error('Error fetching featured properties:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching featured properties',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get similar properties
-// @route   GET /api/properties/:id/similar
-// @access  Public
-router.get('/:id/similar', async (req, res) => {
-  try {
-    const property = await Property.findById(req.params.id);
-    
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
-    }
-
-    const limit = parseInt(req.query.limit) || 4;
-    
-    // Find similar properties based on type, location, and price range
-    const priceRange = property.price * 0.3; // 30% price range
-    
-    const similarProperties = await Property.find({
-      _id: { $ne: property._id },
-      type: property.type,
-      'location.city': property.location.city,
-      price: {
-        $gte: property.price - priceRange,
-        $lte: property.price + priceRange
-      },
-      status: 'active'
-    })
-    .limit(limit)
-    .sort('-createdAt');
-
-    res.json({
-      success: true,
-      data: similarProperties
-    });
-  } catch (error) {
-    console.error('Error fetching similar properties:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching similar properties',
       error: error.message
     });
   }
