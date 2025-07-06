@@ -14,10 +14,6 @@ import {
   ShieldCheckIcon,
   SupportIcon,
   ArrowRightIcon,
-  PlayIcon,
-  CheckIcon,
-  PhoneIcon,
-  MailIcon,
 } from '@heroicons/react/outline';
 import { HeartIcon } from '@heroicons/react/solid';
 
@@ -28,11 +24,9 @@ const Home = () => {
   const { featuredProperties, isLoadingFeatured } = useSelector((state) => state.properties);
 
   const [searchValue, setSearchValue] = useState('');
-  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     dispatch(fetchFeaturedProperties(6));
-    setIsVisible(true);
   }, [dispatch]);
 
   const handleSearch = (searchTerm) => {
