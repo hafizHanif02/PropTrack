@@ -1,0 +1,268 @@
+const mongoose = require('mongoose');
+
+const propertySchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Property title is required'],
+    trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Property description is required'],
+    trim: true,
+    maxlength: [2000, 'Description cannot exceed 2000 characters']
+  },
+  price: {
+    type: Number,
+    required: [true, 'Property price is required'],
+    min: [0, 'Price cannot be negative']
+  },
+  location: {
+    address: {
+      type: String,
+      required: [true, 'Property address is required'],
+      trim: true
+    },
+    city: {
+      type: String,
+      required: [true, 'City is required'],
+      trim: true
+    },
+    state: {
+      type: String,
+      required: [true, 'State is required'],
+      trim: true
+    },
+    zipCode: {
+      type: String,
+      required: [true, 'Zip code is required'],
+      trim: true
+    },
+    coordinates: {
+      lat: Number,
+      lng: Number
+    }
+  },
+  type: {
+    type: String,
+    required: [true, 'Property type is required'],
+    enum: ['sale', 'rent'],
+    lowercase: true
+  },
+  bedrooms: {
+    type: Number,
+    required: [true, 'Number of bedrooms is required'],
+    min: [0, 'Bedrooms cannot be negative'],
+    max: [20, 'Bedrooms cannot exceed 20']
+  },
+  bathrooms: {
+    type: Number,
+    required: [true, 'Number of bathrooms is required'],
+    min: [0, 'Bathrooms cannot be negative'],
+    max: [20, 'Bathrooms cannot exceed 20']
+  },
+  area: {
+    type: Number,
+    required: [true, 'Property area is required'],
+    min: [1, 'Area must be at least 1 square foot']
+  },
+  amenities: [{
+    type: String,
+    trim: true
+  }],
+  images: [{
+    url: {
+      type: String,
+      required: true
+    },
+    alt: {
+      type: String,
+      default: ''
+    },
+    isPrimary: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  status: {
+    type: String,
+    enum: ['active', 'archived', 'sold', 'rented'],
+    default: 'active'
+  },
+  featured: {
+    type: Boolean,
+    default: false
+  },
+  agentNotes: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'Agent notes cannot exceed 1000 characters']
+  }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Indexes for performance optimization
+propertySchema.index({ 'location.city': 1, 'location.state': 1 });
+propertySchema.index({ type: 1, status: 1 });
+propertySchema.index({ price: 1 });
+propertySchema.index({ bedrooms: 1, bathrooms: 1 });
+propertySchema.index({ status: 1, featured: -1, createdAt: -1 });
+propertySchema.index({ 
+  title: 'text', 
+  description: 'text', 
+  'location.address': 'text',
+  'location.city': 'text' 
+});
+
+// Virtual for formatted price
+propertySchema.virtual('formattedPrice').get(function() {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(this.price);
+});
+
+// Virtual for full address
+propertySchema.virtual('fullAddress').get(function() {
+  return `${this.location.address}, ${this.location.city}, ${this.location.state} ${this.location.zipCode}`;
+});
+
+// Virtual for primary image
+propertySchema.virtual('primaryImage').get(function() {
+  const primary = this.images.find(img => img.isPrimary);
+  return primary || this.images[0] || null;
+});
+
+// Pre-save middleware to ensure only one primary image
+propertySchema.pre('save', function(next) {
+  if (this.images && this.images.length > 0) {
+    // If no primary image is set, make the first one primary
+    const hasPrimary = this.images.some(img => img.isPrimary);
+    if (!hasPrimary) {
+      this.images[0].isPrimary = true;
+    }
+    
+    // Ensure only one primary image
+    let primaryCount = 0;
+    this.images.forEach(img => {
+      if (img.isPrimary) {
+        primaryCount++;
+        if (primaryCount > 1) {
+          img.isPrimary = false;
+        }
+      }
+    });
+  }
+  next();
+});
+
+// Static method for advanced search
+propertySchema.statics.searchProperties = function(filters = {}) {
+  const {
+    search,
+    type,
+    minPrice,
+    maxPrice,
+    city,
+    state,
+    minBedrooms,
+    maxBedrooms,
+    minBathrooms,
+    maxBathrooms,
+    minArea,
+    maxArea,
+    amenities,
+    status = 'active',
+    featured,
+    sort = '-createdAt',
+    page = 1,
+    limit = 12
+  } = filters;
+
+  const query = { status };
+  
+  // Text search
+  if (search) {
+    query.$text = { $search: search };
+  }
+  
+  // Property type filter
+  if (type) {
+    query.type = type;
+  }
+  
+  // Price range filter
+  if (minPrice || maxPrice) {
+    query.price = {};
+    if (minPrice) query.price.$gte = minPrice;
+    if (maxPrice) query.price.$lte = maxPrice;
+  }
+  
+  // Location filters
+  if (city) {
+    query['location.city'] = new RegExp(city, 'i');
+  }
+  if (state) {
+    query['location.state'] = new RegExp(state, 'i');
+  }
+  
+  // Bedroom filter
+  if (minBedrooms || maxBedrooms) {
+    query.bedrooms = {};
+    if (minBedrooms) query.bedrooms.$gte = minBedrooms;
+    if (maxBedrooms) query.bedrooms.$lte = maxBedrooms;
+  }
+  
+  // Bathroom filter
+  if (minBathrooms || maxBathrooms) {
+    query.bathrooms = {};
+    if (minBathrooms) query.bathrooms.$gte = minBathrooms;
+    if (maxBathrooms) query.bathrooms.$lte = maxBathrooms;
+  }
+  
+  // Area filter
+  if (minArea || maxArea) {
+    query.area = {};
+    if (minArea) query.area.$gte = minArea;
+    if (maxArea) query.area.$lte = maxArea;
+  }
+  
+  // Amenities filter
+  if (amenities && amenities.length > 0) {
+    query.amenities = { $in: amenities };
+  }
+  
+  // Featured filter
+  if (featured !== undefined) {
+    query.featured = featured;
+  }
+  
+  const skip = (page - 1) * limit;
+  
+  return this.find(query)
+    .sort(sort)
+    .skip(skip)
+    .limit(limit)
+    .populate('primaryImage');
+};
+
+// Static method for getting property statistics
+propertySchema.statics.getStats = function() {
+  return this.aggregate([
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        avgPrice: { $avg: '$price' },
+        minPrice: { $min: '$price' },
+        maxPrice: { $max: '$price' }
+      }
+    }
+  ]);
+};
+
+module.exports = mongoose.model('Property', propertySchema); 
