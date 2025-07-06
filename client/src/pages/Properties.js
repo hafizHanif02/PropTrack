@@ -1,63 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardMedia,
-  CardContent,
-  CardActions,
-  Button,
-  Box,
-  TextField,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
-  Chip,
-  Pagination,
-  CircularProgress,
-  Alert,
-  Paper,
-  Collapse,
-  IconButton,
-  Drawer,
-  Slider,
-  Fade,
-  Zoom,
-  useMediaQuery,
-  useTheme,
-  Skeleton,
-  Tooltip,
-  Fab,
-} from '@mui/material';
-import {
-  Search as SearchIcon,
-  LocationOn as LocationIcon,
-  Bed as BedIcon,
-  Bathroom as BathroomIcon,
-  SquareFoot as AreaIcon,
-  FilterList as FilterIcon,
-  Clear as ClearIcon,
-  Tune as TuneIcon,
-  ViewList as ViewListIcon,
-  ViewModule as ViewModuleIcon,
-  Star as StarIcon,
-  Favorite as FavoriteIcon,
-  FavoriteBorder as FavoriteBorderIcon,
-  Share as ShareIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { fetchProperties, setFilters, clearFilters } from '../store/slices/propertySlice';
+import {
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  HomeIcon,
+  BuildingOfficeIcon,
+  AdjustmentsHorizontalIcon,
+  XMarkIcon,
+  HeartIcon,
+  ShareIcon,
+  StarIcon,
+  ChevronDownIcon,
+  ViewColumnsIcon,
+  Bars3Icon,
+} from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 const Properties = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const { 
     properties, 
@@ -68,12 +31,10 @@ const Properties = () => {
   } = useSelector((state) => state.properties);
 
   const [localFilters, setLocalFilters] = useState(filters);
-  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [priceRange, setPriceRange] = useState([0, 10000000]);
-  const [areaRange, setAreaRange] = useState([0, 5000]);
   const [favorites, setFavorites] = useState(new Set());
+  const [sortBy, setSortBy] = useState('-createdAt');
 
   useEffect(() => {
     dispatch(fetchProperties(filters));
@@ -83,27 +44,9 @@ const Properties = () => {
     setLocalFilters(prev => ({ ...prev, [field]: value }));
   };
 
-  const handlePriceRangeChange = (event, newValue) => {
-    setPriceRange(newValue);
-    setLocalFilters(prev => ({ 
-      ...prev, 
-      minPrice: newValue[0], 
-      maxPrice: newValue[1] 
-    }));
-  };
-
-  const handleAreaRangeChange = (event, newValue) => {
-    setAreaRange(newValue);
-    setLocalFilters(prev => ({ 
-      ...prev, 
-      minArea: newValue[0], 
-      maxArea: newValue[1] 
-    }));
-  };
-
   const applyFilters = () => {
-    dispatch(setFilters(localFilters));
-    setFilterDrawerOpen(false);
+    dispatch(setFilters({ ...localFilters, page: 1 }));
+    setShowFilters(false);
   };
 
   const clearAllFilters = () => {
@@ -127,13 +70,11 @@ const Properties = () => {
       limit: 12,
     };
     setLocalFilters(resetFilters);
-    setPriceRange([0, 10000000]);
-    setAreaRange([0, 5000]);
     dispatch(clearFilters());
-    setFilterDrawerOpen(false);
+    setShowFilters(false);
   };
 
-  const handlePageChange = (event, page) => {
+  const handlePageChange = (page) => {
     dispatch(setFilters({ ...filters, page }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -158,659 +99,463 @@ const Properties = () => {
     }).format(price);
   };
 
-  const getPropertyTypeColor = (type) => {
-    const colors = {
-      house: 'primary',
-      apartment: 'secondary',
-      condo: 'success',
-      townhouse: 'warning',
-      villa: 'info',
-      penthouse: 'error',
-      studio: 'default',
-    };
-    return colors[type] || 'default';
-  };
-
   const PropertyCard = ({ property, index }) => {
     const isFavorite = favorites.has(property._id);
     
     return (
-      <Zoom in={true} timeout={600 + index * 100}>
-        <Grid item xs={12} sm={6} lg={viewMode === 'grid' ? 4 : 6}>
-          <Card 
-            sx={{ 
-              height: '100%', 
-              display: 'flex', 
-              flexDirection: 'column',
-              position: 'relative',
-              overflow: 'hidden',
-              cursor: 'pointer',
-              borderRadius: 3,
-              transition: 'all 0.3s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-8px)',
-                boxShadow: '0px 12px 40px rgba(0, 0, 0, 0.15)',
-                '& .property-image': {
-                  transform: 'scale(1.1)',
-                },
-                '& .property-actions': {
-                  opacity: 1,
-                  transform: 'translateY(0)',
-                },
-              },
-            }}
-          >
-            <Box 
-              sx={{ 
-                position: 'relative', 
-                overflow: 'hidden',
-                height: viewMode === 'grid' ? (isMobile ? 200 : 240) : (isMobile ? 180 : 200),
+      <div 
+        className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer transform hover:-translate-y-2 animate-fade-in ${
+          viewMode === 'list' ? 'flex' : ''
+        }`}
+        style={{ animationDelay: `${index * 100}ms` }}
+        onClick={() => navigate(`/properties/${property._id}`)}
+      >
+        <div className={`relative overflow-hidden ${viewMode === 'list' ? 'w-80 flex-shrink-0' : ''}`}>
+          <img
+            src={property.images?.[0] || '/placeholder-property.jpg'}
+            alt={property.title}
+            className={`object-cover group-hover:scale-110 transition-transform duration-700 ${
+              viewMode === 'list' ? 'w-full h-full' : 'w-full h-64'
+            }`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          
+          {/* Property Badges */}
+          <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <span className="bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm font-semibold capitalize">
+              {property.type}
+            </span>
+            {property.featured && (
+              <span className="bg-yellow-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                <StarIcon className="w-4 h-4" />
+                Featured
+              </span>
+            )}
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(property._id);
               }}
-              onClick={() => navigate(`/properties/${property._id}`)}
+              className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-colors"
             >
-              <CardMedia
-                component="img"
-                height="100%"
-                image={property.images?.[0] || '/placeholder-property.jpg'}
-                alt={property.title}
-                className="property-image"
-                sx={{ 
-                  objectFit: 'cover',
-                  transition: 'transform 0.6s ease-in-out',
-                }}
-              />
-              
-              {/* Property Actions Overlay */}
-              <Box
-                className="property-actions"
-                sx={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                  opacity: 0,
-                  transform: 'translateY(-10px)',
-                  transition: 'all 0.3s ease-in-out',
-                }}
-              >
-                <Tooltip title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(property._id);
-                    }}
-                    sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      '&:hover': {
-                        backgroundColor: 'white',
-                      },
-                    }}
-                  >
-                    {isFavorite ? (
-                      <FavoriteIcon sx={{ color: 'error.main' }} />
-                    ) : (
-                      <FavoriteBorderIcon />
-                    )}
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Share property">
-                  <IconButton
-                    size="small"
-                    onClick={(e) => e.stopPropagation()}
-                    sx={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      '&:hover': {
-                        backgroundColor: 'white',
-                      },
-                    }}
-                  >
-                    <ShareIcon />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-
-              {/* Property Badges */}
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 12,
-                  left: 12,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                }}
-              >
-                <Chip
-                  label={property.type}
-                  color={getPropertyTypeColor(property.type)}
-                  size="small"
-                  sx={{ 
-                    fontWeight: 600,
-                    fontSize: isMobile ? '0.7rem' : '0.75rem',
-                  }}
-                />
-                {property.featured && (
-                  <Chip
-                    icon={<StarIcon />}
-                    label="Featured"
-                    color="warning"
-                    size="small"
-                    sx={{ 
-                      fontWeight: 600,
-                      fontSize: isMobile ? '0.7rem' : '0.75rem',
-                    }}
-                  />
+              {isFavorite ? (
+                <HeartIconSolid className="w-5 h-5 text-red-500" />
+              ) : (
+                <HeartIcon className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white transition-colors"
+            >
+              <ShareIcon className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+          
+          {/* Price Badge */}
+          <div className="absolute bottom-4 right-4 bg-gray-900/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg">
+            <span className="text-lg font-bold">{formatPrice(property.price)}</span>
+          </div>
+        </div>
+        
+        <div className={`p-6 ${viewMode === 'list' ? 'flex-1' : ''}`}>
+          <h3 className="text-xl font-bold text-gray-900 mb-2 truncate">{property.title}</h3>
+          
+          <div className="flex items-center text-gray-600 mb-4">
+            <MapPinIcon className="w-4 h-4 mr-2" />
+            <span className="truncate">{property.location?.city}, {property.location?.state}</span>
+          </div>
+          
+          <div className="flex items-center justify-between text-gray-600">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <HomeIcon className="w-4 h-4" />
+                <span className="text-sm font-medium">{property.bedrooms} bed</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <BuildingOfficeIcon className="w-4 h-4" />
+                <span className="text-sm font-medium">{property.bathrooms} bath</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium">{property.area} sq ft</span>
+              </div>
+            </div>
+          </div>
+          
+          {viewMode === 'list' && (
+            <div className="mt-4">
+              <p className="text-gray-600 text-sm line-clamp-2">{property.description}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {property.amenities?.slice(0, 3).map((amenity, idx) => (
+                  <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                    {amenity}
+                  </span>
+                ))}
+                {property.amenities?.length > 3 && (
+                  <span className="text-gray-500 text-xs">+{property.amenities.length - 3} more</span>
                 )}
-              </Box>
-
-              {/* Price Badge */}
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: 12,
-                  left: 12,
-                  backgroundColor: 'rgba(44, 62, 80, 0.9)',
-                  color: 'white',
-                  px: 2,
-                  py: 1,
-                  borderRadius: 2,
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <Typography 
-                  variant={isMobile ? "body1" : "h6"} 
-                  sx={{ fontWeight: 700 }}
-                >
-                  {formatPrice(property.price)}
-                </Typography>
-              </Box>
-            </Box>
-            
-            <CardContent sx={{ flexGrow: 1, p: isMobile ? 2 : 3 }}>
-              <Typography 
-                variant="h6" 
-                component="h3" 
-                gutterBottom 
-                sx={{ 
-                  fontWeight: 600,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontSize: isMobile ? '1rem' : '1.25rem',
-                }}
-              >
-                {property.title}
-              </Typography>
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <LocationIcon sx={{ fontSize: 18, mr: 1, color: 'text.secondary' }} />
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary"
-                  sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {property.location?.city}, {property.location?.state}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                gap: isMobile ? 2 : 3, 
-                mb: 2,
-                flexWrap: isMobile ? 'wrap' : 'nowrap',
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <BedIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {property.bedrooms} bed{property.bedrooms !== 1 ? 's' : ''}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <BathroomIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {property.bathrooms} bath{property.bathrooms !== 1 ? 's' : ''}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <AreaIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {property.area} sq ft
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  lineHeight: 1.5,
-                }}
-              >
-                {property.description}
-              </Typography>
-            </CardContent>
-            
-            <CardActions sx={{ p: isMobile ? 2 : 3, pt: 0 }}>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={() => navigate(`/properties/${property._id}`)}
-                sx={{
-                  borderRadius: 2,
-                  py: 1.5,
-                  fontWeight: 600,
-                  background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #1A252F 30%, #2C3E50 90%)',
-                  },
-                }}
-              >
-                View Details
-              </Button>
-            </CardActions>
-          </Card>
-        </Grid>
-      </Zoom>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     );
   };
 
   const FilterPanel = () => (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Filter Properties
-        </Typography>
-        <IconButton onClick={() => setFilterDrawerOpen(false)}>
-          <ClearIcon />
-        </IconButton>
-      </Box>
-
-      <Grid container spacing={3}>
+    <div className="bg-white p-6 rounded-2xl shadow-lg">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-bold text-gray-900">Filters</h3>
+        <button
+          onClick={() => setShowFilters(false)}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <XMarkIcon className="w-5 h-5" />
+        </button>
+      </div>
+      
+      <div className="space-y-6">
         {/* Search */}
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Search properties..."
-            value={localFilters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-            }}
-          />
-        </Grid>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search properties..."
+              value={localFilters.search || ''}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
 
         {/* Property Type */}
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth>
-            <InputLabel>Property Type</InputLabel>
-            <Select
-              value={localFilters.type}
-              label="Property Type"
-              onChange={(e) => handleFilterChange('type', e.target.value)}
-            >
-              <MenuItem value="">All Types</MenuItem>
-              <MenuItem value="house">House</MenuItem>
-              <MenuItem value="apartment">Apartment</MenuItem>
-              <MenuItem value="condo">Condo</MenuItem>
-              <MenuItem value="townhouse">Townhouse</MenuItem>
-              <MenuItem value="villa">Villa</MenuItem>
-              <MenuItem value="penthouse">Penthouse</MenuItem>
-              <MenuItem value="studio">Studio</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-
-        {/* Sort */}
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth>
-            <InputLabel>Sort By</InputLabel>
-            <Select
-              value={localFilters.sort}
-              label="Sort By"
-              onChange={(e) => handleFilterChange('sort', e.target.value)}
-            >
-              <MenuItem value="-createdAt">Newest First</MenuItem>
-              <MenuItem value="createdAt">Oldest First</MenuItem>
-              <MenuItem value="price">Price: Low to High</MenuItem>
-              <MenuItem value="-price">Price: High to Low</MenuItem>
-              <MenuItem value="bedrooms">Bedrooms</MenuItem>
-              <MenuItem value="-bedrooms">Bedrooms (Desc)</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Property Type</label>
+          <select
+            value={localFilters.type || ''}
+            onChange={(e) => handleFilterChange('type', e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Types</option>
+            <option value="house">House</option>
+            <option value="apartment">Apartment</option>
+            <option value="condo">Condo</option>
+            <option value="townhouse">Townhouse</option>
+            <option value="villa">Villa</option>
+            <option value="penthouse">Penthouse</option>
+            <option value="studio">Studio</option>
+          </select>
+        </div>
 
         {/* Price Range */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle2" gutterBottom>
-            Price Range: {formatPrice(priceRange[0])} - {formatPrice(priceRange[1])}
-          </Typography>
-          <Slider
-            value={priceRange}
-            onChange={handlePriceRangeChange}
-            valueLabelDisplay="auto"
-            min={0}
-            max={10000000}
-            step={100000}
-            valueLabelFormat={(value) => formatPrice(value)}
-            sx={{ mt: 2 }}
-          />
-        </Grid>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              placeholder="Min Price"
+              value={localFilters.minPrice || ''}
+              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <input
+              type="number"
+              placeholder="Max Price"
+              value={localFilters.maxPrice || ''}
+              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
 
-        {/* Advanced Filters Toggle */}
-        <Grid item xs={12}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            endIcon={showAdvancedFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            sx={{ borderRadius: 2 }}
+        {/* Location */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text"
+              placeholder="City"
+              value={localFilters.city || ''}
+              onChange={(e) => handleFilterChange('city', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <input
+              type="text"
+              placeholder="State"
+              value={localFilters.state || ''}
+              onChange={(e) => handleFilterChange('state', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* Bedrooms & Bathrooms */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms & Bathrooms</label>
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={localFilters.minBedrooms || ''}
+              onChange={(e) => handleFilterChange('minBedrooms', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Any Bedrooms</option>
+              <option value="1">1+ Bedrooms</option>
+              <option value="2">2+ Bedrooms</option>
+              <option value="3">3+ Bedrooms</option>
+              <option value="4">4+ Bedrooms</option>
+              <option value="5">5+ Bedrooms</option>
+            </select>
+            <select
+              value={localFilters.minBathrooms || ''}
+              onChange={(e) => handleFilterChange('minBathrooms', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Any Bathrooms</option>
+              <option value="1">1+ Bathrooms</option>
+              <option value="2">2+ Bathrooms</option>
+              <option value="3">3+ Bathrooms</option>
+              <option value="4">4+ Bathrooms</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Area Range */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Area (sq ft)</label>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              placeholder="Min Area"
+              value={localFilters.minArea || ''}
+              onChange={(e) => handleFilterChange('minArea', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <input
+              type="number"
+              placeholder="Max Area"
+              value={localFilters.maxArea || ''}
+              onChange={(e) => handleFilterChange('maxArea', e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* Featured Properties */}
+        <div>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={localFilters.featured || false}
+              onChange={(e) => handleFilterChange('featured', e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span className="ml-2 text-sm text-gray-700">Featured Properties Only</span>
+          </label>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 pt-4">
+          <button
+            onClick={applyFilters}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300"
           >
-            Advanced Filters
-          </Button>
-        </Grid>
-
-        {/* Advanced Filters */}
-        <Collapse in={showAdvancedFilters} sx={{ width: '100%' }}>
-          <Grid container spacing={3} sx={{ mt: 1 }}>
-            {/* Location */}
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="City"
-                value={localFilters.city}
-                onChange={(e) => handleFilterChange('city', e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="State"
-                value={localFilters.state}
-                onChange={(e) => handleFilterChange('state', e.target.value)}
-              />
-            </Grid>
-
-            {/* Bedrooms */}
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Min Bedrooms"
-                type="number"
-                value={localFilters.minBedrooms}
-                onChange={(e) => handleFilterChange('minBedrooms', e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Max Bedrooms"
-                type="number"
-                value={localFilters.maxBedrooms}
-                onChange={(e) => handleFilterChange('maxBedrooms', e.target.value)}
-              />
-            </Grid>
-
-            {/* Bathrooms */}
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Min Bathrooms"
-                type="number"
-                value={localFilters.minBathrooms}
-                onChange={(e) => handleFilterChange('minBathrooms', e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Max Bathrooms"
-                type="number"
-                value={localFilters.maxBathrooms}
-                onChange={(e) => handleFilterChange('maxBathrooms', e.target.value)}
-              />
-            </Grid>
-
-            {/* Area Range */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" gutterBottom>
-                Area Range: {areaRange[0]} - {areaRange[1]} sq ft
-              </Typography>
-              <Slider
-                value={areaRange}
-                onChange={handleAreaRangeChange}
-                valueLabelDisplay="auto"
-                min={0}
-                max={5000}
-                step={100}
-                sx={{ mt: 2 }}
-              />
-            </Grid>
-          </Grid>
-        </Collapse>
-
-        {/* Filter Actions */}
-        <Grid item xs={12}>
-          <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-            <Button
-              variant="outlined"
-              onClick={clearAllFilters}
-              fullWidth
-              sx={{ borderRadius: 2 }}
-            >
-              Clear All
-            </Button>
-            <Button
-              variant="contained"
-              onClick={applyFilters}
-              fullWidth
-              sx={{
-                borderRadius: 2,
-                background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-              }}
-            >
-              Apply Filters
-            </Button>
-          </Box>
-        </Grid>
-      </Grid>
-    </Box>
+            Apply Filters
+          </button>
+          <button
+            onClick={clearAllFilters}
+            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error">{error}</Alert>
-      </Container>
+      <div className="container mx-auto px-6 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      {/* Header */}
-      <Fade in={true} timeout={800}>
-        <Box sx={{ mb: 4 }}>
-          <Typography 
-            variant="h3" 
-            component="h1" 
-            gutterBottom 
-            sx={{ fontWeight: 700, color: 'primary.main' }}
-          >
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
             Property Listings
-          </Typography>
-          <Typography variant="h6" color="text.secondary">
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl">
             Discover your perfect home from our extensive collection of properties across UAE
-          </Typography>
-        </Box>
-      </Fade>
+          </p>
+        </div>
 
-      {/* Controls */}
-      <Fade in={true} timeout={1000}>
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: isMobile ? 'flex-start' : 'center', 
-          mb: 3,
-          flexDirection: isMobile ? 'column' : 'row',
-          gap: isMobile ? 2 : 0,
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        {/* Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">
               {pagination?.totalProperties || 0} Properties Found
-            </Typography>
-            {isLoading && <CircularProgress size={24} />}
-          </Box>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {!isMobile && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                <IconButton
-                  onClick={() => setViewMode('grid')}
-                  color={viewMode === 'grid' ? 'primary' : 'default'}
-                >
-                  <ViewModuleIcon />
-                </IconButton>
-                <IconButton
-                  onClick={() => setViewMode('list')}
-                  color={viewMode === 'list' ? 'primary' : 'default'}
-                >
-                  <ViewListIcon />
-                </IconButton>
-              </Box>
+            </h2>
+            {isLoading && (
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             )}
-            
-            <Button
-              variant="outlined"
-              startIcon={<FilterIcon />}
-              onClick={() => setFilterDrawerOpen(true)}
-              sx={{ 
-                borderRadius: 2,
-                minWidth: isMobile ? '100px' : '120px',
-              }}
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  dispatch(setFilters({ ...filters, sort: e.target.value }));
+                }}
+                className="appearance-none bg-white border border-gray-300 rounded-xl px-4 py-2 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="-createdAt">Newest First</option>
+                <option value="createdAt">Oldest First</option>
+                <option value="price">Price: Low to High</option>
+                <option value="-price">Price: High to Low</option>
+                <option value="area">Area: Small to Large</option>
+                <option value="-area">Area: Large to Small</option>
+              </select>
+              <ChevronDownIcon className="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="hidden md:flex bg-white border border-gray-300 rounded-xl p-1">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <ViewColumnsIcon className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Bars3Icon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filters Button */}
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors"
             >
+              <AdjustmentsHorizontalIcon className="w-5 h-5" />
               Filters
-            </Button>
-          </Box>
-        </Box>
-      </Fade>
+            </button>
+          </div>
+        </div>
 
-      {/* Properties Grid */}
-      {isLoading ? (
-        <Grid container spacing={3}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => (
-            <Grid item xs={12} sm={6} lg={viewMode === 'grid' ? 4 : 6} key={item}>
-              <Card sx={{ height: 400 }}>
-                <Skeleton variant="rectangular" height={240} />
-                <CardContent>
-                  <Skeleton variant="text" height={30} />
-                  <Skeleton variant="text" height={20} width="60%" />
-                  <Skeleton variant="text" height={25} width="40%" />
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                    <Skeleton variant="text" height={20} width="30%" />
-                    <Skeleton variant="text" height={20} width="30%" />
-                    <Skeleton variant="text" height={20} width="30%" />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      ) : (
-        <>
-          <Grid container spacing={3}>
-            {(properties || []).map((property, index) => (
-              <PropertyCard 
-                key={property._id} 
-                property={property} 
-                index={index} 
-              />
+        {/* Properties Grid/List */}
+        {isLoading ? (
+          <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
+            {[...Array(9)].map((_, index) => (
+              <div key={index} className="bg-white rounded-2xl shadow-lg overflow-hidden animate-pulse">
+                <div className="h-64 bg-gray-300"></div>
+                <div className="p-6">
+                  <div className="h-6 bg-gray-300 rounded mb-4"></div>
+                  <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-300 rounded w-2/3"></div>
+                </div>
+              </div>
             ))}
-          </Grid>
-
-          {/* Pagination */}
-          {pagination?.totalPages > 1 && (
-            <Fade in={true} timeout={1200}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
-                <Pagination
-                  count={pagination.totalPages}
-                  page={pagination.currentPage}
-                  onChange={handlePageChange}
-                  color="primary"
-                  size="large"
-                  sx={{
-                    '& .MuiPaginationItem-root': {
-                      borderRadius: 2,
-                      fontWeight: 600,
-                    },
-                  }}
+          </div>
+        ) : (
+          <>
+            <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
+              {(properties || []).map((property, index) => (
+                <PropertyCard 
+                  key={property._id} 
+                  property={property} 
+                  index={index} 
                 />
-              </Box>
-            </Fade>
-          )}
+              ))}
+            </div>
 
-          {/* No Results */}
-          {(!properties || properties.length === 0) && !isLoading && (
-            <Fade in={true} timeout={800}>
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                  No properties found
-                </Typography>
-                <Typography variant="body1" color="text.secondary" gutterBottom>
-                  Try adjusting your search criteria or clearing filters
-                </Typography>
-                <Button 
-                  variant="outlined" 
+            {/* Pagination */}
+            {pagination?.totalPages > 1 && (
+              <div className="flex justify-center mt-12">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={pagination.currentPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {[...Array(pagination.totalPages)].map((_, index) => {
+                    const page = index + 1;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-4 py-2 rounded-xl transition-colors ${
+                          page === pagination.currentPage
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={pagination.currentPage === pagination.totalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* No Results */}
+            {(!properties || properties.length === 0) && !isLoading && (
+              <div className="text-center py-16">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">No properties found</h3>
+                <p className="text-gray-600 mb-8">Try adjusting your search criteria or clearing filters</p>
+                <button 
                   onClick={clearAllFilters}
-                  sx={{ mt: 2, borderRadius: 2 }}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
                 >
                   Clear All Filters
-                </Button>
-              </Box>
-            </Fade>
-          )}
-        </>
-      )}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-      {/* Filter Drawer */}
-      <Drawer
-        anchor="right"
-        open={filterDrawerOpen}
-        onClose={() => setFilterDrawerOpen(false)}
-        PaperProps={{
-          sx: { width: { xs: '100%', sm: 400 } }
-        }}
-      >
-        <FilterPanel />
-      </Drawer>
-
-      {/* Mobile Filter FAB */}
-      {isMobile && (
-        <Fab
-          color="primary"
-          aria-label="filters"
-          onClick={() => setFilterDrawerOpen(true)}
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-          }}
-        >
-          <TuneIcon />
-        </Fab>
+      {/* Filter Sidebar */}
+      {showFilters && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <FilterPanel />
+          </div>
+        </div>
       )}
-    </Container>
+    </div>
   );
 };
 
