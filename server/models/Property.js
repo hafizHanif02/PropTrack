@@ -46,7 +46,7 @@ const propertySchema = new mongoose.Schema({
   type: {
     type: String,
     required: [true, 'Property type is required'],
-    enum: ['house', 'apartment', 'condo', 'townhouse', 'villa'],
+    enum: ['house', 'apartment', 'condo', 'townhouse', 'villa', 'studio', 'penthouse', 'duplex', 'compound', 'warehouse', 'office', 'retail', 'land'],
     lowercase: true
   },
   listingType: {
@@ -81,7 +81,7 @@ const propertySchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['active', 'archived', 'sold', 'rented'],
+    enum: ['active', 'archived', 'sold', 'rented', 'pending'],
     default: 'active'
   },
   featured: {
@@ -115,9 +115,9 @@ propertySchema.index({
 
 // Virtual for formatted price
 propertySchema.virtual('formattedPrice').get(function() {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-AE', {
     style: 'currency',
-    currency: 'USD'
+    currency: 'AED'
   }).format(this.price);
 });
 

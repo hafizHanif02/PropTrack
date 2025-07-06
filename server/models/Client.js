@@ -30,12 +30,12 @@ const clientSchema = new mongoose.Schema({
   },
   inquiryType: {
     type: String,
-    enum: ['buy', 'rent', 'viewing', 'information', 'offer', 'general'],
+    enum: ['buy', 'rent', 'viewing', 'information', 'offer', 'general', 'purchase', 'investment', 'consultation', 'evaluation'],
     default: 'viewing'
   },
   status: {
     type: String,
-    enum: ['new', 'contacted', 'viewing_scheduled', 'interested', 'not_interested', 'closed'],
+    enum: ['new', 'contacted', 'viewing_scheduled', 'interested', 'not_interested', 'closed', 'qualified', 'offer_made', 'negotiating', 'lost'],
     default: 'new'
   },
   priority: {
@@ -66,7 +66,7 @@ const clientSchema = new mongoose.Schema({
   preferences: {
     propertyType: [{
       type: String,
-      enum: ['house', 'apartment', 'condo', 'townhouse', 'villa']
+      enum: ['house', 'apartment', 'condo', 'townhouse', 'villa', 'studio', 'penthouse', 'duplex', 'compound', 'warehouse', 'office', 'retail', 'land']
     }],
     bedrooms: {
       min: {
@@ -125,7 +125,7 @@ const clientSchema = new mongoose.Schema({
   }],
   source: {
     type: String,
-    enum: ['website', 'referral', 'social_media', 'advertisement', 'walk_in', 'other'],
+    enum: ['website', 'referral', 'social_media', 'advertisement', 'walk_in', 'phone_call', 'other'],
     default: 'website'
   },
   isActive: {
@@ -188,17 +188,13 @@ clientSchema.virtual('urgencyScore').get(function() {
   return score;
 });
 
-// Virtual for budget range string
-clientSchema.virtual('budgetRange').get(function() {
-  if (!this.budget || (!this.budget.min && !this.budget.max)) {
-    return 'Not specified';
-  }
-  
+// Virtual for formatted budget
+clientSchema.virtual('formattedBudget').get(function() {
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-AE', {
       style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0
+      currency: 'AED',
+      minimumFractionDigits: 0,
     }).format(amount);
   };
   
@@ -209,6 +205,7 @@ clientSchema.virtual('budgetRange').get(function() {
   } else if (this.budget.max) {
     return `Below ${formatCurrency(this.budget.max)}`;
   }
+  return 'Budget not specified';
 });
 
 // Pre-save middleware to update lastContactedAt when status changes

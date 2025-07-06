@@ -158,7 +158,6 @@ Complete management interface with statistics, property management, and client t
 PropTrack/
 ├── client/                 # React frontend
 │   ├── public/
-│   ├── src/
 │   │   ├── components/     # Reusable components
 │   │   ├── pages/          # Page components
 │   │   ├── store/          # Redux store and slices
@@ -192,13 +191,85 @@ NODE_ENV=development
 ### Backend
 - `npm start` - Start production server
 - `npm run dev` - Start development server with nodemon
-- `npm run seed` - Seed database with sample data
+- `npm run seed` - Seed database with sample data (original 5 properties)
+- `npm run seed:small` - Seed with small dataset (10 users, 25 properties, 15 clients, 20 viewings)
+- `npm run seed:medium` - Seed with medium dataset (25 users, 100 properties, 50 clients, 75 viewings)
+- `npm run seed:large` - Seed with large dataset (50 users, 500 properties, 200 clients, 300 viewings)
+- `npm run seed:xlarge` - Seed with extra large dataset (100 users, 1000 properties, 500 clients, 750 viewings)
+- `npm run seed:bulk` - Seed with default medium dataset
+- `npm run clear` - Clear all data from database
 
 ### Frontend
 - `npm start` - Start development server
 - `npm run build` - Build for production
 - `npm test` - Run tests
 - `npm run eject` - Eject from Create React App
+
+## 💰 Currency & Localization
+
+This application is configured for the **UAE market** with the following features:
+- **Currency**: AED (United Arab Emirates Dirham) 
+- **Locale**: en-AE (English - UAE)
+- **Coverage**: All 7 UAE Emirates with 140+ areas
+- **Realistic Pricing**: Based on actual UAE real estate market rates
+- **Local Names**: Authentic Arabic names for users and locations
+
+## 🌍 UAE Market Coverage
+
+The application includes comprehensive coverage of:
+- **Dubai**: 20 premium areas (Downtown, Marina, Jumeirah, etc.)
+- **Abu Dhabi**: 20 key locations (Corniche, Saadiyat Island, Yas Island, etc.)
+- **Sharjah**: 20 residential areas (Al Majaz, Al Qasba, University City, etc.)
+- **Ajman**: 20 districts (Al Nuaimiya, Marina, Al Zorah, etc.)
+- **Ras Al Khaimah**: 20 areas (Al Hamra, Marjan Island, etc.)
+- **Fujairah**: 20 locations (Fujairah City, Dibba, Kalba, etc.)
+- **Umm Al Quwain**: 20 areas (UAQ City, Al Salamah, etc.)
+
+## 📊 Data Seeding Options
+
+Choose the appropriate dataset size for your development needs:
+
+### Small Dataset (Quick Testing)
+```bash
+npm run seed:small
+```
+- 10 users (3 agents, 7 regular users)
+- 25 properties across UAE
+- 15 client inquiries
+- 20 property viewings
+
+### Medium Dataset (Development)
+```bash
+npm run seed:medium
+```
+- 25 users (7 agents, 18 regular users)
+- 100 properties across UAE
+- 50 client inquiries
+- 75 property viewings
+
+### Large Dataset (Performance Testing)
+```bash
+npm run seed:large
+```
+- 50 users (15 agents, 35 regular users)
+- 500 properties across UAE
+- 200 client inquiries
+- 300 property viewings
+
+### Extra Large Dataset (Production Simulation)
+```bash
+npm run seed:xlarge
+```
+- 100 users (30 agents, 70 regular users)
+- 1000 properties across UAE
+- 500 client inquiries
+- 750 property viewings
+
+### Clear Database
+```bash
+npm run clear
+```
+Removes all data from the database (users, properties, clients, viewings)
 
 ## 📈 Performance Features
 
@@ -212,10 +283,19 @@ NODE_ENV=development
 ## 🔧 Development Notes
 
 ### Database Seeding
-The application includes sample data for testing:
-- 5 realistic properties with varied types and locations
-- 5 diverse clients with different inquiry types
-- 5 scheduled viewings across different timeframes
+The application includes multiple seeding options for different development needs:
+- **Original Seeder**: 5 realistic properties with varied types and locations
+- **Small Dataset**: Perfect for quick testing and development
+- **Medium Dataset**: Ideal for feature development and testing
+- **Large Dataset**: Great for performance testing and UI stress testing
+- **Extra Large Dataset**: Simulates production-level data for comprehensive testing
+
+All datasets include:
+- Realistic UAE property data with authentic locations and pricing
+- Diverse user profiles including agents and regular users
+- Comprehensive client inquiries with various statuses and priorities
+- Property viewings with different states and feedback
+- AED currency formatting throughout the application
 
 ### State Management
 Redux Toolkit is used for efficient state management with:
@@ -228,6 +308,13 @@ Redux Toolkit is used for efficient state management with:
 - JWT-based authentication
 - Protected routes for admin features
 - User session management
+
+### UAE Market Features
+- **Authentic Locations**: 140+ real areas across all 7 UAE emirates
+- **Realistic Pricing**: Market-based pricing in AED for different emirates
+- **Local Names**: Authentic Arabic names for users and locations
+- **Property Types**: Comprehensive range including villas, apartments, penthouses, etc.
+- **Amenities**: UAE-specific amenities and features
 
 ## 🐛 Troubleshooting
 

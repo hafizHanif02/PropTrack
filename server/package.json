@@ -6,6 +6,13 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "seed": "node scripts/seedData.js",
+    "seed:small": "node scripts/seedBulkData.js small",
+    "seed:medium": "node scripts/seedBulkData.js medium",
+    "seed:large": "node scripts/seedBulkData.js large",
+    "seed:xlarge": "node scripts/seedBulkData.js xlarge",
+    "seed:bulk": "node scripts/seedBulkData.js",
+    "clear": "node scripts/clearData.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["mern", "express", "mongodb", "nodejs", "api"],

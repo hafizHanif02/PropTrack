@@ -16,9 +16,13 @@ const viewingSchema = new mongoose.Schema({
     required: [true, 'Scheduled date and time is required'],
     validate: {
       validator: function(date) {
+        // Allow past dates for completed, cancelled, or no_show viewings
+        if (['completed', 'cancelled', 'no_show'].includes(this.status)) {
+          return true;
+        }
         return date > new Date();
       },
-      message: 'Scheduled date must be in the future'
+      message: 'Scheduled date must be in the future for active viewings'
     }
   },
   duration: {
