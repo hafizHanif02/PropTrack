@@ -76,10 +76,14 @@ const amenities = [
 ];
 
 // Generate random property data
-const generateProperty = (cityData, index) => {
+const generateProperty = (cityData, index, agents) => {
   const area = cityData.areas[Math.floor(Math.random() * cityData.areas.length)];
   const type = propertyTypes[Math.floor(Math.random() * propertyTypes.length)];
   const listingType = listingTypes[Math.floor(Math.random() * listingTypes.length)];
+  
+  // Assign a random agent to this property
+  const agent = agents[Math.floor(Math.random() * agents.length)];
+  
   const bedrooms = Math.floor(Math.random() * 6) + 1; // 1-6 bedrooms
   const bathrooms = Math.floor(Math.random() * 4) + 1; // 1-4 bathrooms
   const sqft = Math.floor(Math.random() * 4000) + 500; // 500-4500 sqft
@@ -153,7 +157,8 @@ const generateProperty = (cityData, index) => {
     ],
     status: Math.random() > 0.1 ? 'active' : 'sold',
     featured: Math.random() > 0.7, // 30% chance of being featured
-    yearBuilt: Math.floor(Math.random() * 20) + 2005, // 2005-2024
+    agent: agent._id, // Assign the agent to this property
+    yearBuilt: Math.floor(Math.random() * 20) + 2005,
     parkingSpaces: Math.floor(Math.random() * 3) + 1, // 1-3 parking spaces
     furnishing: ['unfurnished', 'semi-furnished', 'fully-furnished'][Math.floor(Math.random() * 3)]
   };
@@ -272,20 +277,32 @@ const seedDatabase = async () => {
     await User.deleteMany({});
     
     console.log('👥 Creating users...');
-    const users = await User.insertMany(sampleUsers);
+    const users = [];
+    
+    // Create users individually to trigger pre-save hooks for password hashing
+    for (const userData of sampleUsers) {
+      const user = new User(userData);
+      await user.save();
+      users.push(user);
+    }
+    
     console.log(`✅ Created ${users.length} users (${users.filter(u => u.role === 'admin').length} agents, ${users.filter(u => u.role === 'user').length} regular users)`);
     
     console.log('🏠 Creating properties...');
     const properties = [];
     
+    // Get only agent users for property assignment
+    const agents = users.filter(user => user.role === 'admin');
+    
     // Create 100 properties distributed across UAE cities
     for (let i = 0; i < 100; i++) {
       const cityData = uaeCities[i % uaeCities.length];
-      properties.push(generateProperty(cityData, i));
+      properties.push(generateProperty(cityData, i, agents));
     }
     
     const createdProperties = await Property.insertMany(properties);
     console.log(`✅ Created ${createdProperties.length} properties across UAE`);
+    console.log(`📋 Properties assigned to ${agents.length} agents`);
     
     console.log('👤 Creating clients...');
     const clients = [];

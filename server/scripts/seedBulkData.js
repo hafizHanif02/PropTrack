@@ -107,10 +107,13 @@ const generateUser = (index, isAgent = false) => {
 };
 
 // Generate property data with realistic UAE pricing
-const generateProperty = (cityData, index) => {
+const generateProperty = (cityData, index, agents) => {
   const area = cityData.areas[Math.floor(Math.random() * cityData.areas.length)];
   const type = propertyTypes[Math.floor(Math.random() * propertyTypes.length)];
   const listingType = listingTypes[Math.floor(Math.random() * listingTypes.length)];
+  
+  // Assign a random agent to this property
+  const agent = agents[Math.floor(Math.random() * agents.length)];
   
   let bedrooms, bathrooms, sqft, basePrice;
   
@@ -226,6 +229,7 @@ const generateProperty = (cityData, index) => {
     ],
     status: Math.random() > 0.15 ? 'active' : Math.random() > 0.5 ? 'sold' : 'pending',
     featured: Math.random() > 0.75, // 25% chance of being featured
+    agent: agent._id, // Assign the agent to this property
     yearBuilt: Math.floor(Math.random() * 20) + 2005,
     parkingSpaces: Math.floor(Math.random() * 4) + 1,
     furnishing: ['unfurnished', 'semi-furnished', 'fully-furnished'][Math.floor(Math.random() * 3)]
@@ -361,23 +365,31 @@ const seedBulkData = async (size = 'medium') => {
     const users = [];
     const numAgents = Math.floor(config.users * 0.3); // 30% agents
     
+    // Create users individually to trigger pre-save hooks for password hashing
     for (let i = 0; i < config.users; i++) {
-      users.push(generateUser(i, i < numAgents));
+      const userData = generateUser(i, i < numAgents);
+      const user = new User(userData);
+      await user.save();
+      users.push(user);
     }
     
-    const createdUsers = await User.insertMany(users);
+    const createdUsers = users;
     console.log(`✅ Created ${createdUsers.length} users (${numAgents} agents, ${config.users - numAgents} regular users)`);
     
     console.log('🏠 Creating properties...');
     const properties = [];
     
+    // Get only agent users for property assignment
+    const agents = createdUsers.filter(user => user.role === 'admin');
+    
     for (let i = 0; i < config.properties; i++) {
       const cityData = uaeCities[i % uaeCities.length];
-      properties.push(generateProperty(cityData, i));
+      properties.push(generateProperty(cityData, i, agents));
     }
     
     const createdProperties = await Property.insertMany(properties);
     console.log(`✅ Created ${createdProperties.length} properties across ${uaeCities.length} UAE cities`);
+    console.log(`📋 Properties assigned to ${agents.length} agents`);
     
     console.log('👤 Creating clients...');
     const clients = [];

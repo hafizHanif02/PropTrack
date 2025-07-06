@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { fetchPropertyById, fetchSimilarProperties, clearError } from '../store/slices/propertySlice';
+import { fetchPropertyById, fetchSimilarProperties, clearError, fetchProperties } from '../store/slices/propertySlice';
 import { createClientInquiry } from '../store/slices/clientSlice';
 import {
   ArrowLeftIcon,
@@ -22,6 +22,7 @@ import {
   CalendarIcon,
   UserIcon,
   InformationCircleIcon,
+  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
@@ -33,7 +34,9 @@ const PropertyDetail = () => {
   const { 
     currentProperty, 
     similarProperties, 
+    properties,
     isLoading, 
+    isLoadingSimilar,
     error 
   } = useSelector((state) => state.properties);
   
@@ -60,8 +63,25 @@ const PropertyDetail = () => {
   useEffect(() => {
     if (currentProperty) {
       dispatch(fetchSimilarProperties(currentProperty._id));
+      dispatch(fetchProperties({ limit: 8, page: 1 }));
     }
   }, [dispatch, currentProperty]);
+
+  // Get fallback properties if no similar properties found
+  const displayProperties = React.useMemo(() => {
+    if (similarProperties && similarProperties.length > 0) {
+      return similarProperties;
+    }
+    
+    // Fallback: filter properties of the same type, excluding current property
+    if (properties && properties.length > 0 && currentProperty) {
+      return properties
+        .filter(prop => prop._id !== currentProperty._id && prop.type === currentProperty.type)
+        .slice(0, 4);
+    }
+    
+    return [];
+  }, [similarProperties, properties, currentProperty]);
 
   const handleInquirySubmit = async () => {
     try {
@@ -385,14 +405,13 @@ const PropertyDetail = () => {
             </div>
 
             {/* Tabs */}
-            <div className="bg-white rounded-2xl p-6">
+            <div className="bg-white rounded-2xl p-6 mb-6">
               <div className="border-b border-gray-200 mb-6">
                 <nav className="flex space-x-8">
                   {[
                     { id: 'overview', label: 'Overview' },
                     { id: 'amenities', label: 'Amenities' },
                     { id: 'location', label: 'Location' },
-                    { id: 'similar', label: 'Similar Properties' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -445,21 +464,53 @@ const PropertyDetail = () => {
                   </div>
                 </div>
               )}
+            </div>
 
-              {activeTab === 'similar' && (
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Similar Properties</h3>
-                  {similarProperties && similarProperties.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {similarProperties.slice(0, 4).map((property, index) => (
-                        <PropertyCard key={property._id} property={property} index={index} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">No similar properties found</p>
-                    </div>
-                  )}
+            {/* Similar Properties Section */}
+            <div className="bg-white rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">
+                  {similarProperties && similarProperties.length > 0 
+                    ? 'Similar Properties' 
+                    : 'More Properties Like This'
+                  }
+                </h3>
+                {displayProperties.length > 0 && (
+                  <Link
+                    to="/properties"
+                    className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-1"
+                  >
+                    View All
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </Link>
+                )}
+              </div>
+              
+              {isLoadingSimilar ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[...Array(4)].map((_, index) => (
+                    <div key={index} className="bg-gray-200 rounded-2xl h-64 animate-pulse"></div>
+                  ))}
+                </div>
+              ) : displayProperties && displayProperties.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {displayProperties.map((property, index) => (
+                    <PropertyCard key={property._id} property={property} index={index} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <HomeIcon className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">No Similar Properties Found</h4>
+                  <p className="text-gray-600 mb-6">We couldn't find properties similar to this one at the moment.</p>
+                  <button
+                    onClick={() => navigate('/properties')}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Browse All Properties
+                  </button>
                 </div>
               )}
             </div>

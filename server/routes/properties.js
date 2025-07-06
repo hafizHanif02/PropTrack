@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Property = require('../models/Property');
+const { auth, optionalAuth } = require('../middleware/auth');
 
 // @desc    Get all properties with search and filtering
 // @route   GET /api/properties
-// @access  Public
-router.get('/', async (req, res) => {
+// @access  Public (but filtered by agent if authenticated)
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const {
       search,
@@ -50,44 +51,86 @@ router.get('/', async (req, res) => {
       limit: parseInt(limit)
     };
 
-    // Get properties using static method
-    const properties = await Property.searchProperties(filters);
+    // Add agent filter if user is authenticated (for dashboard)
+    if (req.user && req.query.agentOnly === 'true') {
+      filters.agent = req.user._id;
+    }
+
+    // Build query
+    const query = { status };
+    
+    // Agent filter for authenticated users requesting their own properties
+    if (filters.agent) {
+      query.agent = filters.agent;
+    }
+    
+    // Text search
+    if (search) {
+      query.$text = { $search: search };
+    }
+    
+    // Property type filter
+    if (type) {
+      query.type = type;
+    }
+    
+    // Price range filter
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = parseFloat(minPrice);
+      if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+    }
+    
+    // Location filters
+    if (city) {
+      query['location.city'] = new RegExp(city, 'i');
+    }
+    if (state) {
+      query['location.state'] = new RegExp(state, 'i');
+    }
+    
+    // Bedroom filters
+    if (minBedrooms || maxBedrooms) {
+      query.bedrooms = {};
+      if (minBedrooms) query.bedrooms.$gte = parseInt(minBedrooms);
+      if (maxBedrooms) query.bedrooms.$lte = parseInt(maxBedrooms);
+    }
+    
+    // Bathroom filters
+    if (minBathrooms || maxBathrooms) {
+      query.bathrooms = {};
+      if (minBathrooms) query.bathrooms.$gte = parseInt(minBathrooms);
+      if (maxBathrooms) query.bathrooms.$lte = parseInt(maxBathrooms);
+    }
+    
+    // Area filters
+    if (minArea || maxArea) {
+      query.area = {};
+      if (minArea) query.area.$gte = parseFloat(minArea);
+      if (maxArea) query.area.$lte = parseFloat(maxArea);
+    }
+    
+    // Amenities filter
+    if (amenities) {
+      query.amenities = { $in: amenities.split(',') };
+    }
+    
+    // Featured filter
+    if (featured !== undefined) {
+      query.featured = featured === 'true';
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const properties = await Property.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('agent', 'name email')
+      .exec();
     
     // Get total count for pagination
-    const totalQuery = Property.find();
-    if (search) totalQuery.where({ $text: { $search: search } });
-    if (type) totalQuery.where({ type });
-    if (minPrice || maxPrice) {
-      const priceFilter = {};
-      if (minPrice) priceFilter.$gte = parseFloat(minPrice);
-      if (maxPrice) priceFilter.$lte = parseFloat(maxPrice);
-      totalQuery.where({ price: priceFilter });
-    }
-    if (city) totalQuery.where({ 'location.city': new RegExp(city, 'i') });
-    if (state) totalQuery.where({ 'location.state': new RegExp(state, 'i') });
-    if (minBedrooms || maxBedrooms) {
-      const bedroomFilter = {};
-      if (minBedrooms) bedroomFilter.$gte = parseInt(minBedrooms);
-      if (maxBedrooms) bedroomFilter.$lte = parseInt(maxBedrooms);
-      totalQuery.where({ bedrooms: bedroomFilter });
-    }
-    if (minBathrooms || maxBathrooms) {
-      const bathroomFilter = {};
-      if (minBathrooms) bathroomFilter.$gte = parseInt(minBathrooms);
-      if (maxBathrooms) bathroomFilter.$lte = parseInt(maxBathrooms);
-      totalQuery.where({ bathrooms: bathroomFilter });
-    }
-    if (minArea || maxArea) {
-      const areaFilter = {};
-      if (minArea) areaFilter.$gte = parseFloat(minArea);
-      if (maxArea) areaFilter.$lte = parseFloat(maxArea);
-      totalQuery.where({ area: areaFilter });
-    }
-    if (amenities) totalQuery.where({ amenities: { $in: amenities.split(',') } });
-    if (featured !== undefined) totalQuery.where({ featured: featured === 'true' });
-    totalQuery.where({ status });
-
-    const total = await totalQuery.countDocuments();
+    const total = await Property.countDocuments(query);
     const totalPages = Math.ceil(total / parseInt(limit));
 
     res.json({
@@ -115,15 +158,16 @@ router.get('/', async (req, res) => {
 // @desc    Get property statistics
 // @route   GET /api/properties/stats/overview
 // @access  Private (Agent)
-router.get('/stats/overview', async (req, res) => {
+router.get('/stats/overview', auth, async (req, res) => {
   try {
-    const stats = await Property.getStats();
+    // Get stats for the authenticated agent only
+    const agentQuery = { agent: req.user._id };
     
-    // Get additional metrics
-    const totalProperties = await Property.countDocuments();
-    const activeProperties = await Property.countDocuments({ status: 'active' });
-    const featuredProperties = await Property.countDocuments({ featured: true });
+    const totalProperties = await Property.countDocuments(agentQuery);
+    const activeProperties = await Property.countDocuments({ ...agentQuery, status: 'active' });
+    const featuredProperties = await Property.countDocuments({ ...agentQuery, featured: true });
     const avgPrice = await Property.aggregate([
+      { $match: agentQuery },
       { $group: { _id: null, avgPrice: { $avg: '$price' } } }
     ]);
 
@@ -133,8 +177,7 @@ router.get('/stats/overview', async (req, res) => {
         total: totalProperties,
         active: activeProperties,
         featured: featuredProperties,
-        averagePrice: avgPrice[0]?.avgPrice || 0,
-        statusBreakdown: stats
+        averagePrice: avgPrice[0]?.avgPrice || 0
       }
     });
   } catch (error) {
@@ -218,11 +261,12 @@ router.get('/:id/similar', async (req, res) => {
     }
 
     const limit = parseInt(req.query.limit) || 4;
+    let similarProperties = [];
     
-    // Find similar properties based on type, location, and price range
-    const priceRange = property.price * 0.3; // 30% price range
+    // Strategy 1: Find properties with same type, city, and similar price (±50%)
+    const priceRange = property.price * 0.5;
     
-    const similarProperties = await Property.find({
+    similarProperties = await Property.find({
       _id: { $ne: property._id },
       type: property.type,
       'location.city': property.location.city,
@@ -234,6 +278,59 @@ router.get('/:id/similar', async (req, res) => {
     })
     .limit(limit)
     .sort('-createdAt');
+
+    // Strategy 2: If not enough results, try same type and state (wider area)
+    if (similarProperties.length < limit) {
+      const additionalProperties = await Property.find({
+        _id: { 
+          $ne: property._id,
+          $nin: similarProperties.map(p => p._id)
+        },
+        type: property.type,
+        'location.state': property.location.state,
+        status: 'active'
+      })
+      .limit(limit - similarProperties.length)
+      .sort('-createdAt');
+      
+      similarProperties = [...similarProperties, ...additionalProperties];
+    }
+
+    // Strategy 3: If still not enough, try same type anywhere with similar price
+    if (similarProperties.length < limit) {
+      const moreProperties = await Property.find({
+        _id: { 
+          $ne: property._id,
+          $nin: similarProperties.map(p => p._id)
+        },
+        type: property.type,
+        price: {
+          $gte: property.price - priceRange,
+          $lte: property.price + priceRange
+        },
+        status: 'active'
+      })
+      .limit(limit - similarProperties.length)
+      .sort('-createdAt');
+      
+      similarProperties = [...similarProperties, ...moreProperties];
+    }
+
+    // Strategy 4: Last resort - any properties of the same type
+    if (similarProperties.length < limit) {
+      const fallbackProperties = await Property.find({
+        _id: { 
+          $ne: property._id,
+          $nin: similarProperties.map(p => p._id)
+        },
+        type: property.type,
+        status: 'active'
+      })
+      .limit(limit - similarProperties.length)
+      .sort('-createdAt');
+      
+      similarProperties = [...similarProperties, ...fallbackProperties];
+    }
 
     res.json({
       success: true,
@@ -252,10 +349,18 @@ router.get('/:id/similar', async (req, res) => {
 // @desc    Create new property
 // @route   POST /api/properties
 // @access  Private (Agent)
-router.post('/', async (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
-    const property = new Property(req.body);
+    const propertyData = {
+      ...req.body,
+      agent: req.user._id  // Set the agent to the authenticated user
+    };
+    
+    const property = new Property(propertyData);
     await property.save();
+
+    // Populate agent details for response
+    await property.populate('agent', 'name email');
 
     res.status(201).json({
       success: true,
@@ -275,8 +380,18 @@ router.post('/', async (req, res) => {
 // @desc    Update property
 // @route   PUT /api/properties/:id
 // @access  Private (Agent)
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
+    // First check if the property belongs to the authenticated agent
+    const existingProperty = await Property.findOne({ _id: req.params.id, agent: req.user._id });
+    
+    if (!existingProperty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found or you do not have permission to edit it'
+      });
+    }
+
     const property = await Property.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -284,14 +399,7 @@ router.put('/:id', async (req, res) => {
         new: true,
         runValidators: true
       }
-    );
-
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
-    }
+    ).populate('agent', 'name email');
 
     res.json({
       success: true,
@@ -311,16 +419,19 @@ router.put('/:id', async (req, res) => {
 // @desc    Delete property
 // @route   DELETE /api/properties/:id
 // @access  Private (Agent)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const property = await Property.findByIdAndDelete(req.params.id);
-
+    // First check if the property belongs to the authenticated agent
+    const property = await Property.findOne({ _id: req.params.id, agent: req.user._id });
+    
     if (!property) {
       return res.status(404).json({
         success: false,
-        message: 'Property not found'
+        message: 'Property not found or you do not have permission to delete it'
       });
     }
+
+    await Property.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,

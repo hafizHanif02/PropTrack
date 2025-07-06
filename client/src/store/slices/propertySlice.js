@@ -2,13 +2,26 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
 // Async thunks for API calls
 export const fetchProperties = createAsyncThunk(
   'properties/fetchProperties',
   async (params = {}) => {
+    const { agentOnly = false, ...otherParams } = params;
     const queryParams = new URLSearchParams();
     
-    Object.entries(params).forEach(([key, value]) => {
+    // Add agentOnly parameter if specified
+    if (agentOnly) {
+      queryParams.append('agentOnly', 'true');
+    }
+    
+    // Add other parameters
+    Object.entries(otherParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         if (key === 'priceRange' && Array.isArray(value)) {
           queryParams.append('minPrice', value[0]);
@@ -24,10 +37,18 @@ export const fetchProperties = createAsyncThunk(
       }
     });
     
-    const response = await fetch(`${API_URL}/properties?${queryParams}`);
+    const response = await fetch(`${API_URL}/properties?${queryParams.toString()}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      }
+    });
+    
     if (!response.ok) {
-      throw new Error('Failed to fetch properties');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch properties');
     }
+    
     return response.json();
   }
 );
@@ -68,10 +89,18 @@ export const fetchSimilarProperties = createAsyncThunk(
 export const fetchPropertyStats = createAsyncThunk(
   'properties/fetchPropertyStats',
   async () => {
-    const response = await fetch(`${API_URL}/properties/stats/overview`);
+    const response = await fetch(`${API_URL}/properties/stats/overview`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      }
+    });
+    
     if (!response.ok) {
-      throw new Error('Failed to fetch property statistics');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch property stats');
     }
+    
     return response.json();
   }
 );
@@ -83,12 +112,16 @@ export const createProperty = createAsyncThunk(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders()
       },
       body: JSON.stringify(propertyData),
     });
+    
     if (!response.ok) {
-      throw new Error('Failed to create property');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create property');
     }
+    
     return response.json();
   }
 );
@@ -100,12 +133,16 @@ export const updateProperty = createAsyncThunk(
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders()
       },
       body: JSON.stringify(propertyData),
     });
+    
     if (!response.ok) {
-      throw new Error('Failed to update property');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update property');
     }
+    
     return response.json();
   }
 );
@@ -115,10 +152,17 @@ export const deleteProperty = createAsyncThunk(
   async (id) => {
     const response = await fetch(`${API_URL}/properties/${id}`, {
       method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      }
     });
+    
     if (!response.ok) {
-      throw new Error('Failed to delete property');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete property');
     }
+    
     return { id };
   }
 );
@@ -321,10 +365,17 @@ const propertySlice = createSlice({
         state.error = null;
       })
       .addCase(createProperty.fulfilled, (state, action) => {
+        console.log('🎯 createProperty.fulfilled payload:', action.payload);
         state.isLoading = false;
-        state.properties.unshift(action.payload);
+        
+        // Handle API response structure: { success, data }
+        const newProperty = action.payload.success ? action.payload.data : action.payload;
+        console.log('📝 Adding new property to state:', newProperty);
+        
+        state.properties.unshift(newProperty);
       })
       .addCase(createProperty.rejected, (state, action) => {
+        console.error('❌ createProperty.rejected:', action.error);
         state.isLoading = false;
         state.error = action.error.message;
       })

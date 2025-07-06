@@ -88,6 +88,11 @@ const propertySchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  agent: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Agent is required']
+  },
   agentNotes: {
     type: String,
     trim: true,
@@ -106,6 +111,7 @@ propertySchema.index({ listingType: 1, status: 1 });
 propertySchema.index({ price: 1 });
 propertySchema.index({ bedrooms: 1, bathrooms: 1 });
 propertySchema.index({ status: 1, featured: -1, createdAt: -1 });
+propertySchema.index({ agent: 1, status: 1 });
 propertySchema.index({ 
   title: 'text', 
   description: 'text', 
