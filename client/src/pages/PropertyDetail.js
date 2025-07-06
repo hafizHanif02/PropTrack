@@ -1,89 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import {
-  Container,
-  Typography,
-  Box,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  CardMedia,
-  Chip,
-  Divider,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Alert,
-  Skeleton,
-  Paper,
-  Avatar,
-  Rating,
-  Tabs,
-  Tab,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Fab,
-  Zoom,
-  Fade,
-  Slide,
-  useMediaQuery,
-  useTheme,
-  ImageList,
-  ImageListItem,
-  Tooltip,
-  Breadcrumbs,
-  Link as MuiLink,
-} from '@mui/material';
-import {
-  LocationOn as LocationIcon,
-  Bed as BedIcon,
-  Bathroom as BathroomIcon,
-  SquareFoot as AreaIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  Share as ShareIcon,
-  Favorite as FavoriteIcon,
-  FavoriteBorder as FavoriteBorderIcon,
-  Close as CloseIcon,
-  ArrowBack as ArrowBackIcon,
-  PhotoCamera as PhotoCameraIcon,
-  Map as MapIcon,
-  ExpandMore as ExpandMoreIcon,
-  Star as StarIcon,
-  CalendarToday as CalendarIcon,
-  Person as PersonIcon,
-  CheckCircle as CheckCircleIcon,
-  Home as HomeIcon,
-  Schedule as ScheduleIcon,
-  Info as InfoIcon,
-  LocalOffer as LocalOfferIcon,
-  Security as SecurityIcon,
-  Wifi as WifiIcon,
-  Pool as PoolIcon,
-  FitnessCenter as GymIcon,
-  LocalParking as ParkingIcon,
-  Balcony as BalconyIcon,
-  Kitchen as KitchenIcon,
-  Bathtub as BathtubIcon,
-  AcUnit as AcIcon,
-  Elevator as ElevatorIcon,
-} from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 import { fetchPropertyById, fetchSimilarProperties, clearError } from '../store/slices/propertySlice';
 import { createClientInquiry } from '../store/slices/clientSlice';
+import {
+  ArrowLeftIcon,
+  HeartIcon,
+  ShareIcon,
+  MapPinIcon,
+  HomeIcon,
+  BuildingOfficeIcon,
+  StarIcon,
+  PhoneIcon,
+  EnvelopeIcon,
+  XMarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PhotoIcon,
+  CheckCircleIcon,
+  CalendarIcon,
+  UserIcon,
+  InformationCircleIcon,
+} from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 
 const PropertyDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const { 
     currentProperty, 
@@ -96,7 +41,7 @@ const PropertyDetail = () => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
+  const [activeTab, setActiveTab] = useState('overview');
   const [inquiryForm, setInquiryForm] = useState({
     name: '',
     email: '',
@@ -155,947 +100,552 @@ const PropertyDetail = () => {
     }).format(price);
   };
 
-  const getAmenityIcon = (amenity) => {
-    const icons = {
-      'swimming pool': <PoolIcon />,
-      'gym': <GymIcon />,
-      'parking': <ParkingIcon />,
-      'balcony': <BalconyIcon />,
-      'kitchen': <KitchenIcon />,
-      'wifi': <WifiIcon />,
-      'security': <SecurityIcon />,
-      'elevator': <ElevatorIcon />,
-      'air conditioning': <AcIcon />,
-      'bathtub': <BathtubIcon />,
-    };
-    return icons[amenity.toLowerCase()] || <CheckCircleIcon />;
+  const nextImage = () => {
+    setSelectedImage((prev) => 
+      prev === (currentProperty?.images?.length - 1) ? 0 : prev + 1
+    );
   };
 
-  const TabPanel = ({ children, value, index, ...other }) => (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`property-tabpanel-${index}`}
-      aria-labelledby={`property-tab-${index}`}
-      {...other}
+  const prevImage = () => {
+    setSelectedImage((prev) => 
+      prev === 0 ? (currentProperty?.images?.length - 1) : prev - 1
+    );
+  };
+
+  const PropertyCard = ({ property, index }) => (
+    <div 
+      className="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer transform hover:-translate-y-2"
+      onClick={() => navigate(`/properties/${property._id}`)}
     >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      <div className="relative overflow-hidden">
+        <img
+          src={property.images?.[0] || '/placeholder-property.jpg'}
+          alt={property.title}
+          className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-700"
+        />
+        <div className="absolute top-4 left-4">
+          <span className="bg-white/90 backdrop-blur-sm text-gray-800 px-3 py-1 rounded-full text-sm font-semibold capitalize">
+            {property.type}
+          </span>
+        </div>
+        <div className="absolute bottom-4 right-4 bg-gray-900/80 backdrop-blur-sm text-white px-3 py-1 rounded-lg">
+          <span className="font-bold">{formatPrice(property.price)}</span>
+        </div>
+      </div>
+      
+      <div className="p-4">
+        <h3 className="font-bold text-gray-900 mb-2 truncate">{property.title}</h3>
+        <div className="flex items-center text-gray-600 mb-2">
+          <MapPinIcon className="w-4 h-4 mr-1" />
+          <span className="text-sm truncate">{property.location?.city}, {property.location?.state}</span>
+        </div>
+        <div className="flex items-center gap-4 text-gray-600 text-sm">
+          <div className="flex items-center gap-1">
+            <HomeIcon className="w-4 h-4" />
+            <span>{property.bedrooms} bed</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <BuildingOfficeIcon className="w-4 h-4" />
+            <span>{property.bathrooms} bath</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>{property.area} sq ft</span>
+          </div>
+        </div>
+      </div>
     </div>
-  );
-
-  const ImageGallery = () => (
-    <Box sx={{ position: 'relative', mb: 4 }}>
-      <Grid container spacing={2}>
-        {/* Main Image */}
-        <Grid item xs={12} md={8}>
-          <Card 
-            sx={{ 
-              position: 'relative', 
-              overflow: 'hidden',
-              cursor: 'pointer',
-              '&:hover .image-overlay': {
-                opacity: 1,
-              },
-            }}
-            onClick={() => setImageDialogOpen(true)}
-          >
-            <CardMedia
-              component="img"
-              height={isMobile ? 300 : 500}
-              image={currentProperty?.images?.[selectedImage] || '/placeholder-property.jpg'}
-              alt={currentProperty?.title}
-              sx={{ 
-                objectFit: 'cover',
-                transition: 'transform 0.3s ease-in-out',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-            />
-            <Box
-              className="image-overlay"
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(0, 0, 0, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0,
-                transition: 'opacity 0.3s ease-in-out',
-              }}
-            >
-              <IconButton
-                sx={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  '&:hover': {
-                    backgroundColor: 'white',
-                  },
-                }}
-              >
-                <PhotoCameraIcon />
-              </IconButton>
-            </Box>
-            
-            {/* Image Actions */}
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 16,
-                right: 16,
-                display: 'flex',
-                gap: 1,
-              }}
-            >
-              <Tooltip title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                <IconButton
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsFavorite(!isFavorite);
-                  }}
-                  sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    '&:hover': {
-                      backgroundColor: 'white',
-                    },
-                  }}
-                >
-                  {isFavorite ? (
-                    <FavoriteIcon sx={{ color: 'error.main' }} />
-                  ) : (
-                    <FavoriteBorderIcon />
-                  )}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Share property">
-                <IconButton
-                  onClick={(e) => e.stopPropagation()}
-                  sx={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    '&:hover': {
-                      backgroundColor: 'white',
-                    },
-                  }}
-                >
-                  <ShareIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            {/* Image Counter */}
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 16,
-                right: 16,
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                px: 2,
-                py: 1,
-                borderRadius: 2,
-                fontSize: '0.875rem',
-                fontWeight: 500,
-              }}
-            >
-              {selectedImage + 1} / {currentProperty?.images?.length || 1}
-            </Box>
-          </Card>
-        </Grid>
-
-        {/* Thumbnail Images */}
-        <Grid item xs={12} md={4}>
-          <Box sx={{ height: isMobile ? 'auto' : 500, overflow: 'hidden' }}>
-            <ImageList 
-              sx={{ 
-                width: '100%', 
-                height: isMobile ? 200 : 500,
-                overflow: 'auto',
-              }} 
-              cols={isMobile ? 4 : 2}
-              rowHeight={isMobile ? 80 : 120}
-            >
-              {currentProperty?.images?.map((image, index) => (
-                <ImageListItem 
-                  key={index}
-                  sx={{
-                    cursor: 'pointer',
-                    opacity: selectedImage === index ? 1 : 0.7,
-                    border: selectedImage === index ? '3px solid' : 'none',
-                    borderColor: 'primary.main',
-                    borderRadius: 1,
-                    overflow: 'hidden',
-                    transition: 'all 0.2s ease-in-out',
-                    '&:hover': {
-                      opacity: 1,
-                      transform: 'scale(1.05)',
-                    },
-                  }}
-                  onClick={() => setSelectedImage(index)}
-                >
-                  <img
-                    src={image}
-                    alt={`Property ${index + 1}`}
-                    loading="lazy"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                </ImageListItem>
-              ))}
-            </ImageList>
-          </Box>
-        </Grid>
-      </Grid>
-    </Box>
   );
 
   if (isLoading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={8}>
-            <Skeleton variant="rectangular" height={400} sx={{ mb: 2 }} />
-            <Skeleton variant="text" height={40} />
-            <Skeleton variant="text" height={60} width="60%" />
-            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-              <Skeleton variant="text" height={30} width="20%" />
-              <Skeleton variant="text" height={30} width="20%" />
-              <Skeleton variant="text" height={30} width="20%" />
-            </Box>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Skeleton variant="rectangular" height={300} />
-          </Grid>
-        </Grid>
-      </Container>
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-6 py-8">
+          <div className="animate-pulse">
+            <div className="h-96 bg-gray-300 rounded-2xl mb-8"></div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <div className="h-8 bg-gray-300 rounded mb-4"></div>
+                <div className="h-6 bg-gray-300 rounded mb-4 w-2/3"></div>
+                <div className="h-32 bg-gray-300 rounded"></div>
+              </div>
+              <div className="h-96 bg-gray-300 rounded-2xl"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (error && error !== 'Failed to load similar properties') {
+  if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button
-          variant="outlined"
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/properties')}
-        >
-          Back to Properties
-        </Button>
-      </Container>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md">
+            <h2 className="text-xl font-bold text-red-800 mb-2">Error Loading Property</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={() => navigate('/properties')}
+              className="bg-red-600 text-white px-6 py-2 rounded-xl hover:bg-red-700 transition-colors"
+            >
+              Back to Properties
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (!currentProperty) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="info">Property not found</Alert>
-      </Container>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Property Not Found</h2>
+          <p className="text-gray-600 mb-6">The property you're looking for doesn't exist.</p>
+          <button
+            onClick={() => navigate('/properties')}
+            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
+          >
+            Back to Properties
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      {/* Breadcrumbs */}
-      <Fade in={true} timeout={600}>
-        <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 3 }}>
-          <MuiLink
-            component={Link}
-            to="/"
-            color="inherit"
-            sx={{ display: 'flex', alignItems: 'center' }}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Home
-          </MuiLink>
-          <MuiLink
-            component={Link}
-            to="/properties"
-            color="inherit"
-          >
-            Properties
-          </MuiLink>
-          <Typography color="text.primary">
-            {currentProperty.title}
-          </Typography>
-        </Breadcrumbs>
-      </Fade>
-
-      {/* Back Button */}
-      <Fade in={true} timeout={800}>
-        <Box sx={{ mb: 3 }}>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/properties')}
-            sx={{ borderRadius: 2 }}
-          >
-            Back to Properties
-          </Button>
-        </Box>
-      </Fade>
-
-      <Grid container spacing={4}>
-        {/* Main Content */}
-        <Grid item xs={12} lg={8}>
-          <Slide direction="up" in={true} timeout={1000}>
-            <Box>
-              {/* Image Gallery */}
-              <ImageGallery />
-
-              {/* Property Info */}
-              <Box sx={{ mb: 4 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                  <Chip
-                    label={currentProperty.type}
-                    color="primary"
-                    sx={{ fontWeight: 600 }}
-                  />
-                  {currentProperty.featured && (
-                    <Chip
-                      icon={<StarIcon />}
-                      label="Featured"
-                      color="warning"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  )}
-                  <Chip
-                    label={currentProperty.listingType === 'sale' ? 'For Sale' : 'For Rent'}
-                    color="secondary"
-                    sx={{ fontWeight: 600 }}
-                  />
-                </Box>
-
-                <Typography 
-                  variant="h3" 
-                  component="h1" 
-                  gutterBottom 
-                  sx={{ fontWeight: 700, color: 'primary.main' }}
-                >
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm sticky top-0 z-40">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/properties')}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <ArrowLeftIcon className="w-6 h-6" />
+              </button>
+              <nav className="flex items-center gap-2 text-sm text-gray-600">
+                <Link to="/" className="hover:text-blue-600">Home</Link>
+                <span>/</span>
+                <Link to="/properties" className="hover:text-blue-600">Properties</Link>
+                <span>/</span>
+                <span className="text-gray-900 font-medium truncate max-w-xs">
                   {currentProperty.title}
-                </Typography>
+                </span>
+              </nav>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsFavorite(!isFavorite)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                {isFavorite ? (
+                  <HeartIconSolid className="w-6 h-6 text-red-500" />
+                ) : (
+                  <HeartIcon className="w-6 h-6 text-gray-600" />
+                )}
+              </button>
+              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <ShareIcon className="w-6 h-6 text-gray-600" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                  <LocationIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Typography variant="h6" color="text.secondary">
-                    {currentProperty.location?.address}, {currentProperty.location?.city}, {currentProperty.location?.state}
-                  </Typography>
-                </Box>
-
-                <Typography 
-                  variant="h4" 
-                  color="primary" 
-                  sx={{ fontWeight: 700, mb: 4 }}
-                >
-                  {formatPrice(currentProperty.price)}
-                  {currentProperty.listingType === 'rent' && (
-                    <Typography component="span" variant="h6" color="text.secondary">
-                      /month
-                    </Typography>
-                  )}
-                </Typography>
-
-                {/* Key Features */}
-                <Grid container spacing={3} sx={{ mb: 4 }}>
-                  <Grid item xs={6} sm={3}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        textAlign: 'center',
-                        backgroundColor: 'grey.50',
-                        borderRadius: 3,
-                        transition: 'all 0.2s ease-in-out',
-                        '&:hover': {
-                          backgroundColor: 'primary.main',
-                          color: 'white',
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                    >
-                      <BedIcon sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {currentProperty.bedrooms}
-                      </Typography>
-                      <Typography variant="body2">
-                        Bedroom{currentProperty.bedrooms !== 1 ? 's' : ''}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        textAlign: 'center',
-                        backgroundColor: 'grey.50',
-                        borderRadius: 3,
-                        transition: 'all 0.2s ease-in-out',
-                        '&:hover': {
-                          backgroundColor: 'primary.main',
-                          color: 'white',
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                    >
-                      <BathroomIcon sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {currentProperty.bathrooms}
-                      </Typography>
-                      <Typography variant="body2">
-                        Bathroom{currentProperty.bathrooms !== 1 ? 's' : ''}
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        textAlign: 'center',
-                        backgroundColor: 'grey.50',
-                        borderRadius: 3,
-                        transition: 'all 0.2s ease-in-out',
-                        '&:hover': {
-                          backgroundColor: 'primary.main',
-                          color: 'white',
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                    >
-                      <AreaIcon sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {currentProperty.area}
-                      </Typography>
-                      <Typography variant="body2">
-                        Sq Ft
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        textAlign: 'center',
-                        backgroundColor: 'grey.50',
-                        borderRadius: 3,
-                        transition: 'all 0.2s ease-in-out',
-                        '&:hover': {
-                          backgroundColor: 'primary.main',
-                          color: 'white',
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                    >
-                      <CalendarIcon sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {new Date(currentProperty.createdAt).getFullYear()}
-                      </Typography>
-                      <Typography variant="body2">
-                        Listed
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {/* Tabs */}
-              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-                <Tabs 
-                  value={tabValue} 
-                  onChange={(e, newValue) => setTabValue(newValue)}
-                  variant={isMobile ? 'scrollable' : 'standard'}
-                  scrollButtons="auto"
-                  sx={{
-                    '& .MuiTab-root': {
-                      fontWeight: 600,
-                      textTransform: 'none',
-                      fontSize: '1rem',
-                    },
-                  }}
-                >
-                  <Tab label="Overview" />
-                  <Tab label="Amenities" />
-                  <Tab label="Location" />
-                  <Tab label="Similar Properties" />
-                </Tabs>
-              </Box>
-
-              {/* Tab Panels */}
-              <TabPanel value={tabValue} index={0}>
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                  Property Description
-                </Typography>
-                <Typography variant="body1" paragraph sx={{ lineHeight: 1.8 }}>
-                  {currentProperty.description}
-                </Typography>
-                
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mt: 4 }}>
-                  Property Details
-                </Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Property Type:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.type}
-                      </Typography>
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Area:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.area} sq ft
-                      </Typography>
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Bedrooms:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.bedrooms}
-                      </Typography>
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Bathrooms:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.bathrooms}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Status:</Typography>
-                      <Chip
-                        label={currentProperty.status}
-                        color={currentProperty.status === 'available' ? 'success' : 'warning'}
-                        size="small"
-                      />
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">Listing Type:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        For {currentProperty.listingType === 'sale' ? 'Sale' : 'Rent'}
-                      </Typography>
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">City:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.location?.city}
-                      </Typography>
-                    </Box>
-                    <Divider />
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                      <Typography variant="body1" color="text.secondary">State:</Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {currentProperty.location?.state}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={1}>
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                  Amenities & Features
-                </Typography>
-                <Grid container spacing={2}>
-                  {currentProperty.amenities?.map((amenity, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Paper
-                        elevation={0}
-                        sx={{
-                          p: 2,
-                          display: 'flex',
-                          alignItems: 'center',
-                          backgroundColor: 'grey.50',
-                          borderRadius: 2,
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            backgroundColor: 'primary.main',
-                            color: 'white',
-                            transform: 'translateY(-2px)',
-                          },
-                        }}
-                      >
-                        {getAmenityIcon(amenity)}
-                        <Typography variant="body1" sx={{ ml: 2, fontWeight: 500 }}>
-                          {amenity}
-                        </Typography>
-                      </Paper>
-                    </Grid>
-                  ))}
-                </Grid>
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={2}>
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                  Location & Neighborhood
-                </Typography>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body1" paragraph>
-                    <strong>Address:</strong> {currentProperty.location?.address}
-                  </Typography>
-                  <Typography variant="body1" paragraph>
-                    <strong>City:</strong> {currentProperty.location?.city}
-                  </Typography>
-                  <Typography variant="body1" paragraph>
-                    <strong>State:</strong> {currentProperty.location?.state}
-                  </Typography>
-                  {currentProperty.location?.zipCode && (
-                    <Typography variant="body1" paragraph>
-                      <strong>ZIP Code:</strong> {currentProperty.location.zipCode}
-                    </Typography>
-                  )}
-                </Box>
-                <Button
-                  variant="outlined"
-                  startIcon={<MapIcon />}
-                  sx={{ borderRadius: 2 }}
-                >
-                  View on Map
-                </Button>
-              </TabPanel>
-
-              <TabPanel value={tabValue} index={3}>
-                <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                  Similar Properties
-                </Typography>
-                <Grid container spacing={3}>
-                  {similarProperties?.map((property, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={property._id}>
-                      <Zoom in={true} timeout={600 + index * 100}>
-                        <Card 
-                          sx={{ 
-                            cursor: 'pointer',
-                            transition: 'all 0.3s ease-in-out',
-                            '&:hover': {
-                              transform: 'translateY(-4px)',
-                              boxShadow: '0px 8px 25px rgba(0, 0, 0, 0.15)',
-                            },
-                          }}
-                          onClick={() => navigate(`/properties/${property._id}`)}
-                        >
-                          <CardMedia
-                            component="img"
-                            height="200"
-                            image={property.images?.[0] || '/placeholder-property.jpg'}
-                            alt={property.title}
-                          />
-                          <CardContent>
-                            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                              {property.title}
-                            </Typography>
-                            <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
-                              {formatPrice(property.price)}
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                              <Typography variant="body2" color="text.secondary">
-                                {property.bedrooms} bed
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {property.bathrooms} bath
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {property.area} sq ft
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Zoom>
-                    </Grid>
-                  ))}
-                </Grid>
-              </TabPanel>
-            </Box>
-          </Slide>
-        </Grid>
-
-        {/* Sidebar */}
-        <Grid item xs={12} lg={4}>
-          <Slide direction="left" in={true} timeout={1200}>
-            <Box sx={{ position: 'sticky', top: 100 }}>
-              {/* Contact Card */}
-              <Card sx={{ mb: 3, borderRadius: 3 }}>
-                <CardContent sx={{ p: 4 }}>
-                  <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-                    Interested in this property?
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    Get in touch with us for more information or to schedule a viewing.
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      startIcon={<PhoneIcon />}
-                      sx={{
-                        py: 1.5,
-                        borderRadius: 2,
-                        background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-                      }}
-                    >
-                      Call Now
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<EmailIcon />}
-                      onClick={() => setInquiryDialogOpen(true)}
-                      sx={{ py: 1.5, borderRadius: 2 }}
-                    >
-                      Email
-                    </Button>
-                  </Box>
-                  
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<ScheduleIcon />}
-                    sx={{ py: 1.5, borderRadius: 2 }}
-                  >
-                    Schedule Viewing
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Agent Info */}
-              <Card sx={{ mb: 3, borderRadius: 3 }}>
-                <CardContent sx={{ p: 4 }}>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    Listed by Agent
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Avatar sx={{ width: 60, height: 60, mr: 2, backgroundColor: 'primary.main' }}>
-                      <PersonIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                        John Smith
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Senior Real Estate Agent
-                      </Typography>
-                      <Rating value={4.8} readOnly precision={0.1} size="small" />
-                    </Box>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    Experienced agent with 10+ years in UAE real estate market.
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    sx={{ borderRadius: 2 }}
-                  >
-                    View Agent Profile
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card sx={{ borderRadius: 3 }}>
-                <CardContent sx={{ p: 4 }}>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    Quick Actions
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<LocalOfferIcon />}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Make an Offer
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<InfoIcon />}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Request Info
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<ShareIcon />}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      Share Property
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Slide>
-        </Grid>
-      </Grid>
-
-      {/* Inquiry Dialog */}
-      <Dialog 
-        open={inquiryDialogOpen} 
-        onClose={() => setInquiryDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3 }
-        }}
-      >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            Send Inquiry
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Get more information about this property
-          </Typography>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={3} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Full Name"
-                value={inquiryForm.name}
-                onChange={(e) => setInquiryForm({...inquiryForm, name: e.target.value})}
+      <div className="container mx-auto px-6 py-8">
+        {/* Image Gallery */}
+        <div className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-96">
+            {/* Main Image */}
+            <div className="md:col-span-3 relative rounded-2xl overflow-hidden">
+              <img
+                src={currentProperty.images?.[0] || '/placeholder-property.jpg'}
+                alt={currentProperty.title}
+                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                onClick={() => setImageDialogOpen(true)}
               />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={inquiryForm.email}
-                onChange={(e) => setInquiryForm({...inquiryForm, email: e.target.value})}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Phone Number"
-                value={inquiryForm.phone}
-                onChange={(e) => setInquiryForm({...inquiryForm, phone: e.target.value})}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Message"
-                multiline
-                rows={4}
-                value={inquiryForm.message}
-                onChange={(e) => setInquiryForm({...inquiryForm, message: e.target.value})}
-                placeholder="I'm interested in this property. Please provide more details..."
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button 
-            onClick={() => setInquiryDialogOpen(false)}
-            sx={{ borderRadius: 2 }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleInquirySubmit}
-            sx={{
-              borderRadius: 2,
-              background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-            }}
-          >
-            Send Inquiry
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Image Gallery Dialog */}
-      <Dialog 
-        open={imageDialogOpen} 
-        onClose={() => setImageDialogOpen(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3 }
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Property Gallery</Typography>
-          <IconButton onClick={() => setImageDialogOpen(false)}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ textAlign: 'center' }}>
-            <img
-              src={currentProperty?.images?.[selectedImage]}
-              alt={`Property ${selectedImage + 1}`}
-              style={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '70vh',
-                objectFit: 'contain',
-              }}
-            />
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
-              {currentProperty?.images?.map((image, index) => (
-                <Box
-                  key={index}
-                  onClick={() => setSelectedImage(index)}
-                  sx={{
-                    width: 80,
-                    height: 60,
-                    cursor: 'pointer',
-                    border: selectedImage === index ? '2px solid' : '1px solid',
-                    borderColor: selectedImage === index ? 'primary.main' : 'grey.300',
-                    borderRadius: 1,
-                    overflow: 'hidden',
-                  }}
-                >
+              <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg backdrop-blur-sm">
+                <span className="text-sm font-medium">
+                  1 / {currentProperty.images?.length || 1}
+                </span>
+              </div>
+              <button
+                onClick={() => setImageDialogOpen(true)}
+                className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded-lg backdrop-blur-sm hover:bg-black/70 transition-colors"
+              >
+                <PhotoIcon className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Thumbnail Images */}
+            <div className="hidden md:flex flex-col gap-4">
+              {currentProperty.images?.slice(1, 3).map((image, index) => (
+                <div key={index} className="relative rounded-xl overflow-hidden flex-1">
                   <img
                     src={image}
-                    alt={`Thumbnail ${index + 1}`}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
+                    alt={`${currentProperty.title} ${index + 2}`}
+                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                    onClick={() => {
+                      setSelectedImage(index + 1);
+                      setImageDialogOpen(true);
                     }}
                   />
-                </Box>
+                </div>
               ))}
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
+              {currentProperty.images?.length > 3 && (
+                <div 
+                  className="relative rounded-xl overflow-hidden flex-1 cursor-pointer"
+                  onClick={() => setImageDialogOpen(true)}
+                >
+                  <img
+                    src={currentProperty.images[3]}
+                    alt={`${currentProperty.title} 4`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">
+                      +{currentProperty.images.length - 3} more
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-      {/* Mobile Contact FAB */}
-      {isMobile && (
-        <Fab
-          color="primary"
-          aria-label="contact"
-          onClick={() => setInquiryDialogOpen(true)}
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            background: 'linear-gradient(45deg, #2C3E50 30%, #34495E 90%)',
-          }}
-        >
-          <EmailIcon />
-        </Fab>
+        {/* Property Info */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2">
+            {/* Property Header */}
+            <div className="bg-white rounded-2xl p-6 mb-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold capitalize">
+                      {currentProperty.type}
+                    </span>
+                    {currentProperty.featured && (
+                      <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                        <StarIcon className="w-4 h-4" />
+                        Featured
+                      </span>
+                    )}
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentProperty.title}</h1>
+                  <div className="flex items-center text-gray-600 mb-4">
+                    <MapPinIcon className="w-5 h-5 mr-2" />
+                    <span className="text-lg">{currentProperty.location?.address}, {currentProperty.location?.city}, {currentProperty.location?.state}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
+                    {formatPrice(currentProperty.price)}
+                  </div>
+                  <div className="text-gray-600">
+                    {currentProperty.listingType === 'rent' ? '/month' : ''}
+                  </div>
+                </div>
+              </div>
+
+              {/* Property Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-xl">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                    <HomeIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{currentProperty.bedrooms}</div>
+                  <div className="text-sm text-gray-600">Bedrooms</div>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                    <BuildingOfficeIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{currentProperty.bathrooms}</div>
+                  <div className="text-sm text-gray-600">Bathrooms</div>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                    <InformationCircleIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{currentProperty.area}</div>
+                  <div className="text-sm text-gray-600">Sq Ft</div>
+                </div>
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                    <CalendarIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">2025</div>
+                  <div className="text-sm text-gray-600">Listed</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-white rounded-2xl p-6">
+              <div className="border-b border-gray-200 mb-6">
+                <nav className="flex space-x-8">
+                  {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'amenities', label: 'Amenities' },
+                    { id: 'location', label: 'Location' },
+                    { id: 'similar', label: 'Similar Properties' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === tab.id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Description</h3>
+                    <p className="text-gray-600 leading-relaxed">{currentProperty.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'amenities' && (
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Amenities</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {currentProperty.amenities?.map((amenity, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                        <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                        <span className="text-gray-700 capitalize">{amenity}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'location' && (
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Location</h3>
+                  <div className="bg-gray-100 rounded-xl p-8 text-center">
+                    <MapPinIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Map integration coming soon</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      {currentProperty.location?.address}, {currentProperty.location?.city}, {currentProperty.location?.state}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'similar' && (
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Similar Properties</h3>
+                  {similarProperties && similarProperties.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {similarProperties.slice(0, 4).map((property, index) => (
+                        <PropertyCard key={property._id} property={property} index={index} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">No similar properties found</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl p-6 sticky top-24">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Interested in this property?</h3>
+              <p className="text-gray-600 mb-6">Get in touch with our team for more information or to schedule a viewing.</p>
+              
+              <div className="space-y-4">
+                <button
+                  onClick={() => setInquiryDialogOpen(true)}
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Request Information
+                </button>
+                
+                <button className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                  <PhoneIcon className="w-5 h-5" />
+                  Call Now
+                </button>
+                
+                <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                  <EnvelopeIcon className="w-5 h-5" />
+                  Send Email
+                </button>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-3">Property Agent</h4>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">PropTrack Agent</div>
+                    <div className="text-sm text-gray-600">Real Estate Professional</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Image Gallery Modal */}
+      {imageDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl">
+            <button
+              onClick={() => setImageDialogOpen(false)}
+              className="absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full transition-colors z-10"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+            
+            <div className="relative">
+              <img
+                src={currentProperty.images?.[selectedImage] || '/placeholder-property.jpg'}
+                alt={`${currentProperty.title} ${selectedImage + 1}`}
+                className="w-full h-auto max-h-[80vh] object-contain rounded-xl"
+              />
+              
+              {currentProperty.images?.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white p-2 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <ChevronLeftIcon className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white p-2 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <ChevronRightIcon className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+            </div>
+            
+            <div className="text-center mt-4">
+              <span className="text-white text-sm">
+                {selectedImage + 1} of {currentProperty.images?.length || 1}
+              </span>
+            </div>
+          </div>
+        </div>
       )}
-    </Container>
+
+      {/* Inquiry Modal */}
+      {inquiryDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Request Information</h3>
+                <button
+                  onClick={() => setInquiryDialogOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={inquiryForm.name}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, name: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Your full name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={inquiryForm.email}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, email: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="your.email@example.com"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input
+                    type="tel"
+                    value={inquiryForm.phone}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, phone: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="+971 XX XXX XXXX"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Inquiry Type</label>
+                  <select
+                    value={inquiryForm.inquiryType}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, inquiryType: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="general">General Inquiry</option>
+                    <option value="viewing">Schedule Viewing</option>
+                    <option value="purchase">Purchase Interest</option>
+                    <option value="rent">Rental Interest</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                  <textarea
+                    value={inquiryForm.message}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, message: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Tell us more about your requirements..."
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setInquiryDialogOpen(false)}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleInquirySubmit}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Send Inquiry
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
