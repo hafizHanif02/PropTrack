@@ -4,18 +4,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchFeaturedProperties, setFilters } from '../store/slices/propertySlice';
 import {
-  SearchIcon,
-  LocationMarkerIcon,
-  BedIcon,
-  BathroomIcon,
+  MagnifyingGlassIcon as SearchIcon,
+  MapPinIcon as LocationMarkerIcon,
   HomeIcon,
   StarIcon,
   TrendingUpIcon,
   ShieldCheckIcon,
   SupportIcon,
   ArrowRightIcon,
-} from '@heroicons/react/outline';
-import { HeartIcon } from '@heroicons/react/solid';
+  BuildingOfficeIcon,
+  UserGroupIcon,
+} from '@heroicons/react/24/outline';
+import { HeartIcon } from '@heroicons/react/24/solid';
 
 const Home = () => {
   const { currentUser } = useAuth();
@@ -95,15 +95,15 @@ const Home = () => {
         <div className="flex items-center justify-between text-gray-600">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
-              <BedIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">{property.bedrooms}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <BathroomIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">{property.bathrooms}</span>
-            </div>
-            <div className="flex items-center gap-1">
               <HomeIcon className="w-4 h-4" />
+              <span className="text-sm font-medium">{property.bedrooms} bed</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <BuildingOfficeIcon className="w-4 h-4" />
+              <span className="text-sm font-medium">{property.bathrooms} bath</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <UserGroupIcon className="w-4 h-4" />
               <span className="text-sm font-medium">{property.area} sq ft</span>
             </div>
           </div>
