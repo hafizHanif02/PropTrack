@@ -267,7 +267,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Hafiz Hanif**
 - GitHub: [@hafizhanif](https://github.com/hafizhanif)
-- Email: hafizhanif@example.com
+- Email: hafiz.hanif992@gmail.com
 
 ## 🙏 Acknowledgments
 
