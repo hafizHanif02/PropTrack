@@ -365,17 +365,14 @@ const propertySlice = createSlice({
         state.error = null;
       })
       .addCase(createProperty.fulfilled, (state, action) => {
-        console.log('🎯 createProperty.fulfilled payload:', action.payload);
         state.isLoading = false;
         
         // Handle API response structure: { success, data }
         const newProperty = action.payload.success ? action.payload.data : action.payload;
-        console.log('📝 Adding new property to state:', newProperty);
         
         state.properties.unshift(newProperty);
       })
       .addCase(createProperty.rejected, (state, action) => {
-        console.error('❌ createProperty.rejected:', action.error);
         state.isLoading = false;
         state.error = action.error.message;
       })
@@ -386,12 +383,15 @@ const propertySlice = createSlice({
       })
       .addCase(updateProperty.fulfilled, (state, action) => {
         state.isLoading = false;
-        const index = state.properties.findIndex(p => p._id === action.payload._id);
+        // Handle API response structure: { success, data }
+        const updatedProperty = action.payload.success ? action.payload.data : action.payload;
+        
+        const index = state.properties.findIndex(p => p._id === updatedProperty._id);
         if (index !== -1) {
-          state.properties[index] = action.payload;
+          state.properties[index] = updatedProperty;
         }
-        if (state.currentProperty && state.currentProperty._id === action.payload._id) {
-          state.currentProperty = action.payload;
+        if (state.currentProperty && state.currentProperty._id === updatedProperty._id) {
+          state.currentProperty = updatedProperty;
         }
       })
       .addCase(updateProperty.rejected, (state, action) => {

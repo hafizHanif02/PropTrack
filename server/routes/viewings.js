@@ -48,13 +48,13 @@ router.get('/', async (req, res) => {
     if (status) totalQuery.where({ status: { $in: status.split(',') } });
     if (priority) totalQuery.where({ priority });
     if (type) totalQuery.where({ type });
-    if (propertyId) totalQuery.where({ propertyId });
-    if (clientId) totalQuery.where({ clientId });
+    if (propertyId) totalQuery.where({ property: propertyId });
+    if (clientId) totalQuery.where({ client: clientId });
     if (dateFrom || dateTo) {
       const dateFilter = {};
       if (dateFrom) dateFilter.$gte = new Date(dateFrom);
       if (dateTo) dateFilter.$lte = new Date(dateTo);
-      totalQuery.where({ scheduledDate: dateFilter });
+      totalQuery.where({ scheduledDateTime: dateFilter });
     }
 
     const total = await totalQuery.countDocuments();
@@ -272,7 +272,7 @@ router.get('/property/:propertyId', async (req, res) => {
     const { status, limit = 10 } = req.query;
 
     const query = { 
-      propertyId, 
+      property: propertyId, 
       isActive: true 
     };
     
@@ -281,10 +281,10 @@ router.get('/property/:propertyId', async (req, res) => {
     }
 
     const viewings = await Viewing.find(query)
-      .sort('-scheduledDate')
+      .sort('-scheduledDateTime')
       .limit(parseInt(limit))
-      .populate('clientId', 'name email phone')
-      .populate('propertyId', 'title location.address location.city price type');
+      .populate('client', 'name email phone')
+      .populate('property', 'title location.address location.city price type');
 
     res.json({
       success: true,
@@ -309,7 +309,7 @@ router.get('/client/:clientId', async (req, res) => {
     const { status, limit = 10 } = req.query;
 
     const query = { 
-      clientId, 
+      client: clientId, 
       isActive: true 
     };
     
@@ -318,10 +318,10 @@ router.get('/client/:clientId', async (req, res) => {
     }
 
     const viewings = await Viewing.find(query)
-      .sort('-scheduledDate')
+      .sort('-scheduledDateTime')
       .limit(parseInt(limit))
-      .populate('propertyId', 'title location.address location.city price type')
-      .populate('clientId', 'name email phone');
+      .populate('property', 'title location.address location.city price type')
+      .populate('client', 'name email phone');
 
     res.json({
       success: true,
@@ -337,43 +337,13 @@ router.get('/client/:clientId', async (req, res) => {
   }
 });
 
-// @desc    Get single viewing
-// @route   GET /api/viewings/:id
-// @access  Private (Agent)
-router.get('/:id', async (req, res) => {
-  try {
-    const viewing = await Viewing.findById(req.params.id)
-      .populate('propertyId', 'title location.address location.city price type images')
-      .populate('clientId', 'name email phone message requirements');
-    
-    if (!viewing) {
-      return res.status(404).json({
-        success: false,
-        message: 'Viewing not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: viewing
-    });
-  } catch (error) {
-    console.error('Error fetching viewing:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching viewing',
-      error: error.message
-    });
-  }
-});
-
 // @desc    Create new viewing
 // @route   POST /api/viewings
 // @access  Public (Inquiry form)
 router.post('/', async (req, res) => {
   try {
     // Validate property exists
-    const property = await Property.findById(req.body.propertyId);
+    const property = await Property.findById(req.body.property);
     if (!property) {
       return res.status(404).json({
         success: false,
@@ -382,7 +352,7 @@ router.post('/', async (req, res) => {
     }
 
     // Validate client exists
-    const client = await Client.findById(req.body.clientId);
+    const client = await Client.findById(req.body.client);
     if (!client) {
       return res.status(404).json({
         success: false,
@@ -395,13 +365,13 @@ router.post('/', async (req, res) => {
 
     // Populate property and client details for response
     await viewing.populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
-    // Update client status to scheduled if it was new
+    // Update client status to viewing_scheduled if it was new
     if (client.status === 'new') {
-      client.status = 'scheduled';
+      client.status = 'viewing_scheduled';
       await client.save();
     }
 
@@ -433,8 +403,8 @@ router.put('/:id', async (req, res) => {
         runValidators: true
       }
     ).populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
     if (!viewing) {
@@ -514,8 +484,8 @@ router.patch('/:id/status', async (req, res) => {
     
     // Populate and return updated viewing
     await viewing.populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
     res.json({
@@ -560,8 +530,8 @@ router.patch('/:id/reschedule', async (req, res) => {
     
     // Populate and return updated viewing
     await viewing.populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
     res.json({
@@ -606,8 +576,8 @@ router.post('/:id/notes', async (req, res) => {
     
     // Populate and return updated viewing
     await viewing.populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
     res.json({
@@ -646,8 +616,8 @@ router.patch('/:id/cancel', async (req, res) => {
       },
       { new: true }
     ).populate([
-      { path: 'propertyId', select: 'title location.address location.city price type' },
-      { path: 'clientId', select: 'name email phone' }
+      { path: 'property', select: 'title location.address location.city price type' },
+      { path: 'client', select: 'name email phone' }
     ]);
 
     if (!viewing) {
@@ -667,6 +637,37 @@ router.patch('/:id/cancel', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error cancelling viewing',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get single viewing
+// @route   GET /api/viewings/:id
+// @access  Private (Agent)
+// NOTE: This route MUST be last to avoid matching specific routes like /stats, /upcoming, etc.
+router.get('/:id', async (req, res) => {
+  try {
+    const viewing = await Viewing.findById(req.params.id)
+      .populate('property', 'title location.address location.city price type images')
+      .populate('client', 'name email phone message requirements');
+    
+    if (!viewing) {
+      return res.status(404).json({
+        success: false,
+        message: 'Viewing not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: viewing
+    });
+  } catch (error) {
+    console.error('Error fetching viewing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching viewing',
       error: error.message
     });
   }

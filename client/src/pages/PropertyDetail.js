@@ -89,26 +89,37 @@ const PropertyDetail = () => {
         ...inquiryForm,
         property: currentProperty._id,
         preferences: {
-          propertyType: currentProperty.type,
-          priceRange: {
-            min: currentProperty.price * 0.8,
-            max: currentProperty.price * 1.2,
-          },
-          location: currentProperty.location,
+          propertyType: [currentProperty.type],
+          location: [`${currentProperty.location.city}, ${currentProperty.location.state}`],
+          budget: {
+            min: Math.floor(currentProperty.price * 0.8),
+            max: Math.floor(currentProperty.price * 1.2),
+          }
         },
       };
       
-      await dispatch(createClientInquiry(inquiryData));
-      setInquiryDialogOpen(false);
-      setInquiryForm({
-        name: '',
-        email: '',
-        phone: '',
-        message: '',
-        inquiryType: 'general',
-      });
+      const result = await dispatch(createClientInquiry(inquiryData));
+      
+      if (result.type.endsWith('/fulfilled')) {
+        setInquiryDialogOpen(false);
+        setInquiryForm({
+          name: '',
+          email: '',
+          phone: '',
+          message: '',
+          inquiryType: 'general',
+        });
+        
+        // Show success message
+        alert('Thank you for your inquiry! We will contact you soon.');
+      } else {
+        // Show error message
+        const errorMessage = result.payload?.message || result.error?.message || 'Failed to submit inquiry';
+        alert(`Error: ${errorMessage}`);
+      }
     } catch (error) {
       console.error('Error submitting inquiry:', error);
+      alert(`Error submitting inquiry: ${error.message}`);
     }
   };
 

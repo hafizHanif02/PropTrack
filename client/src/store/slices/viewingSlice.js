@@ -36,7 +36,7 @@ export const fetchViewingById = createAsyncThunk(
 export const fetchTodayViewings = createAsyncThunk(
   'viewings/fetchTodayViewings',
   async () => {
-    const response = await fetch(`${API_URL}/viewings/today`);
+    const response = await fetch(`${API_URL}/viewings/today/list`);
     if (!response.ok) {
       throw new Error('Failed to fetch today\'s viewings');
     }
@@ -47,7 +47,7 @@ export const fetchTodayViewings = createAsyncThunk(
 export const fetchUpcomingViewings = createAsyncThunk(
   'viewings/fetchUpcomingViewings',
   async (days = 7) => {
-    const response = await fetch(`${API_URL}/viewings/upcoming?days=${days}`);
+    const response = await fetch(`${API_URL}/viewings/upcoming/list?days=${days}`);
     if (!response.ok) {
       throw new Error('Failed to fetch upcoming viewings');
     }
@@ -58,7 +58,7 @@ export const fetchUpcomingViewings = createAsyncThunk(
 export const fetchViewingStats = createAsyncThunk(
   'viewings/fetchViewingStats',
   async () => {
-    const response = await fetch(`${API_URL}/viewings/stats`);
+    const response = await fetch(`${API_URL}/viewings/stats/overview`);
     if (!response.ok) {
       throw new Error('Failed to fetch viewing statistics');
     }

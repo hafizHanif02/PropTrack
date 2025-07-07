@@ -114,7 +114,7 @@ const Users = () => {
                 </Box>
               </Box>
             </Paper>
-          </Box>
+        </Box>
         </Fade>
       </Container>
     );
@@ -274,22 +274,22 @@ const Users = () => {
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
                 All Users ({users.length})
-              </Typography>
+      </Typography>
             </Box>
-            
-            <TableContainer>
-              <Table>
+      
+        <TableContainer>
+          <Table>
                 <TableHead sx={{ backgroundColor: 'grey.50' }}>
-                  <TableRow>
+              <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>User</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Joined</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {users.map((user) => (
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {users.map((user) => (
                     <TableRow 
                       key={user._id}
                       sx={{ 
@@ -298,7 +298,7 @@ const Users = () => {
                         },
                       }}
                     >
-                      <TableCell>
+                  <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar 
                             sx={{ 
@@ -308,7 +308,7 @@ const Users = () => {
                             }}
                           >
                             {user.role === 'admin' ? <AdminIcon /> : <PersonIcon />}
-                          </Avatar>
+                    </Avatar>
                           <Box>
                             <Typography variant="body1" sx={{ fontWeight: 600 }}>
                               {user.name}
@@ -318,27 +318,27 @@ const Users = () => {
                             </Typography>
                           </Box>
                         </Box>
-                      </TableCell>
-                      <TableCell>
+                  </TableCell>
+                  <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                           <Typography variant="body2">
                             {user.email}
-                          </Typography>
+                    </Typography>
                         </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={user.role} 
-                          size="small" 
-                          color={user.role === 'admin' ? 'secondary' : 'primary'}
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={user.role} 
+                      size="small" 
+                      color={user.role === 'admin' ? 'secondary' : 'primary'}
                           sx={{ 
                             fontWeight: 600,
                             textTransform: 'capitalize',
                           }}
-                        />
-                      </TableCell>
-                      <TableCell>
+                    />
+                  </TableCell>
+                  <TableCell>
                         <Typography variant="body2">
                           {new Date(user.createdAt).toLocaleDateString('en-US', {
                             year: 'numeric',
@@ -366,14 +366,14 @@ const Users = () => {
                             </IconButton>
                           </Tooltip>
                         </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+      </Box>
       </Fade>
     </Container>
   );

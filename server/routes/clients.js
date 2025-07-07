@@ -21,33 +21,27 @@ router.get('/', async (req, res) => {
       limit = 20
     } = req.query;
 
-    // Build filter object
-    const filters = {
-      search,
-      status: status ? status.split(',') : undefined,
-      priority: priority ? priority.split(',') : undefined,
-      inquiryType,
-      propertyId,
-      source,
-      isActive: isActive === 'true',
-      sort,
-      page: parseInt(page),
-      limit: parseInt(limit)
-    };
+    // Build query object
+    const query = { isActive: isActive === 'true' || isActive === true };
+    
+    if (search) query.$text = { $search: search };
+    if (status) query.status = { $in: status.split(',') };
+    if (priority) query.priority = { $in: priority.split(',') };
+    if (inquiryType) query.inquiryType = inquiryType;
+    if (propertyId) query.property = propertyId;
+    if (source) query.source = source;
 
-    // Get clients using static method
-    const clients = await Client.searchClients(filters);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get clients with pagination
+    const clients = await Client.find(query)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('property', 'title location.address location.city price type');
     
     // Get total count for pagination
-    const totalQuery = Client.find({ isActive: isActive === 'true' });
-    if (search) totalQuery.where({ $text: { $search: search } });
-    if (status) totalQuery.where({ status: { $in: status.split(',') } });
-    if (priority) totalQuery.where({ priority: { $in: priority.split(',') } });
-    if (inquiryType) totalQuery.where({ inquiryType });
-    if (propertyId) totalQuery.where({ propertyId });
-    if (source) totalQuery.where({ source });
-
-    const total = await totalQuery.countDocuments();
+    const total = await Client.countDocuments(query);
     const totalPages = Math.ceil(total / parseInt(limit));
 
     res.json({
@@ -59,8 +53,7 @@ router.get('/', async (req, res) => {
         totalClients: total,
         hasNextPage: parseInt(page) < totalPages,
         hasPrevPage: parseInt(page) > 1
-      },
-      filters: filters
+      }
     });
   } catch (error) {
     console.error('Error fetching clients:', error);
@@ -147,7 +140,7 @@ router.get('/property/:propertyId', async (req, res) => {
     const { status, limit = 10 } = req.query;
 
     const query = { 
-      propertyId, 
+      property: propertyId,
       isActive: true 
     };
     
@@ -158,7 +151,7 @@ router.get('/property/:propertyId', async (req, res) => {
     const clients = await Client.find(query)
       .sort('-createdAt')
       .limit(parseInt(limit))
-      .populate('propertyId', 'title location.address location.city price type');
+      .populate('property', 'title location.address location.city price type');
 
     res.json({
       success: true,
@@ -188,7 +181,7 @@ router.get('/urgent/list', async (req, res) => {
     })
     .sort('-priority -createdAt')
     .limit(limit)
-    .populate('propertyId', 'title location.address location.city price type');
+    .populate('property', 'title location.address location.city price type');
 
     res.json({
       success: true,
@@ -204,54 +197,27 @@ router.get('/urgent/list', async (req, res) => {
   }
 });
 
-// @desc    Get single client
-// @route   GET /api/clients/:id
-// @access  Private (Agent)
-router.get('/:id', async (req, res) => {
-  try {
-    const client = await Client.findById(req.params.id)
-      .populate('propertyId', 'title location.address location.city price type images');
-    
-    if (!client) {
-      return res.status(404).json({
-        success: false,
-        message: 'Client not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: client
-    });
-  } catch (error) {
-    console.error('Error fetching client:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching client',
-      error: error.message
-    });
-  }
-});
-
 // @desc    Create new client inquiry
 // @route   POST /api/clients
 // @access  Public (Inquiry form)
 router.post('/', async (req, res) => {
   try {
-    // Validate property exists
-    const property = await Property.findById(req.body.propertyId);
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
+    // Validate property exists if property ID is provided
+    if (req.body.property) {
+      const property = await Property.findById(req.body.property);
+      if (!property) {
+        return res.status(404).json({
+          success: false,
+          message: 'Property not found'
+        });
+      }
     }
 
     const client = new Client(req.body);
     await client.save();
 
     // Populate property details for response
-    await client.populate('propertyId', 'title location.address location.city price type');
+    await client.populate('property', 'title location.address location.city price type');
 
     res.status(201).json({
       success: true,
@@ -280,7 +246,7 @@ router.put('/:id', async (req, res) => {
         new: true,
         runValidators: true
       }
-    ).populate('propertyId', 'title location.address location.city price type');
+    ).populate('property', 'title location.address location.city price type');
 
     if (!client) {
       return res.status(404).json({
@@ -350,7 +316,7 @@ router.patch('/:id/status', async (req, res) => {
       req.params.id,
       { status },
       { new: true }
-    ).populate('propertyId', 'title location.address location.city price type');
+    ).populate('property', 'title location.address location.city price type');
 
     if (!client) {
       return res.status(404).json({
@@ -392,7 +358,7 @@ router.patch('/:id/priority', async (req, res) => {
       req.params.id,
       { priority },
       { new: true }
-    ).populate('propertyId', 'title location.address location.city price type');
+    ).populate('property', 'title location.address location.city price type');
 
     if (!client) {
       return res.status(404).json({
@@ -442,7 +408,7 @@ router.post('/:id/notes', async (req, res) => {
     await client.addAgentNote(note, important);
     
     // Populate and return updated client
-    await client.populate('propertyId', 'title location.address location.city price type');
+    await client.populate('property', 'title location.address location.city price type');
 
     res.json({
       success: true,
@@ -485,7 +451,7 @@ router.patch('/:id/followup', async (req, res) => {
     await client.setNextFollowUp(new Date(followUpDate));
     
     // Populate and return updated client
-    await client.populate('propertyId', 'title location.address location.city price type');
+    await client.populate('property', 'title location.address location.city price type');
 
     res.json({
       success: true,
@@ -530,6 +496,36 @@ router.patch('/:id/deactivate', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deactivating client',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get single client
+// @route   GET /api/clients/:id
+// @access  Private (Agent)
+// NOTE: This route MUST be last to avoid matching specific routes like /stats, /urgent, etc.
+router.get('/:id', async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id)
+      .populate('property', 'title location.address location.city price type images');
+    
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Client not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: client
+    });
+  } catch (error) {
+    console.error('Error fetching client:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching client',
       error: error.message
     });
   }

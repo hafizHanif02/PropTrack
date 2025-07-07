@@ -364,4 +364,82 @@ viewingSchema.statics.getStats = async function() {
   };
 };
 
+// Static method for searching viewings with filters
+viewingSchema.statics.searchViewings = function(filters = {}) {
+  const {
+    search,
+    status,
+    priority,
+    type,
+    propertyId,
+    clientId,
+    dateFrom,
+    dateTo,
+    isActive = true,
+    sort = 'scheduledDateTime',
+    page = 1,
+    limit = 20
+  } = filters;
+
+  const query = { isActive };
+  
+  // Status filter
+  if (status && status.length > 0) {
+    query.status = { $in: status };
+  }
+  
+  // Priority filter
+  if (priority) {
+    query.priority = priority;
+  }
+  
+  // Type filter
+  if (type) {
+    query.type = type;
+  }
+  
+  // Property filter
+  if (propertyId) {
+    query.property = propertyId;
+  }
+  
+  // Client filter
+  if (clientId) {
+    query.client = clientId;
+  }
+  
+  // Date range filter
+  if (dateFrom || dateTo) {
+    query.scheduledDateTime = {};
+    if (dateFrom) query.scheduledDateTime.$gte = new Date(dateFrom);
+    if (dateTo) query.scheduledDateTime.$lte = new Date(dateTo);
+  }
+  
+  const skip = (page - 1) * limit;
+  
+  let sortQuery = {};
+  if (sort.startsWith('-')) {
+    sortQuery[sort.substring(1)] = -1;
+  } else {
+    sortQuery[sort] = 1;
+  }
+  
+  const queryBuilder = this.find(query)
+    .sort(sortQuery)
+    .skip(skip)
+    .limit(limit)
+    .populate('property', 'title location.address location.city price type')
+    .populate('client', 'name email phone');
+  
+  // Text search if provided
+  if (search) {
+    queryBuilder.or([
+      { 'notes': { $regex: search, $options: 'i' } },
+      { 'specialInstructions': { $regex: search, $options: 'i' } }
+    ]);
+  }
+  
+  return queryBuilder.exec();
+};
+
 module.exports = mongoose.model('Viewing', viewingSchema); 

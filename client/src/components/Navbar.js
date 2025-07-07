@@ -75,7 +75,7 @@ const Navbar = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/');
+    navigate('/');
       handleProfileMenuClose();
     } catch (error) {
       console.error('Failed to log out:', error);
@@ -106,7 +106,7 @@ const Navbar = () => {
     const isActive = item.path && isActiveRoute(item.path);
     
     if (mobile) {
-      return (
+  return (
         <ListItem
           button
           component={item.path ? Link : 'div'}
@@ -166,7 +166,7 @@ const Navbar = () => {
         }}
       >
         {item.text}
-      </Button>
+              </Button>
     );
   };
 
@@ -190,8 +190,8 @@ const Navbar = () => {
             UAE Real Estate
           </Typography>
         </Box>
-        <IconButton
-          color="inherit"
+              <IconButton
+                color="inherit"
           onClick={handleDrawerToggle}
           sx={{ color: 'white' }}
         >
@@ -399,8 +399,8 @@ const Navbar = () => {
                           '&:hover': { borderWidth: 2 },
                         }}
                       >
-                        Login
-                      </Button>
+                Login
+              </Button>
                       <Button
                         component={Link}
                         to="/register"
@@ -415,10 +415,10 @@ const Navbar = () => {
                         }}
                       >
                         Sign Up
-                      </Button>
+              </Button>
                     </Box>
-                  )}
-                </Box>
+          )}
+        </Box>
               </Fade>
             )}
 
@@ -439,8 +439,8 @@ const Navbar = () => {
                 <MenuIcon />
               </IconButton>
             )}
-          </Toolbar>
-        </AppBar>
+      </Toolbar>
+    </AppBar>
       </Slide>
 
       {/* Profile Menu */}

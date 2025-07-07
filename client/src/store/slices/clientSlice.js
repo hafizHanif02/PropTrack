@@ -36,7 +36,7 @@ export const fetchClientById = createAsyncThunk(
 export const fetchClientStats = createAsyncThunk(
   'clients/fetchClientStats',
   async () => {
-    const response = await fetch(`${API_URL}/clients/stats`);
+    const response = await fetch(`${API_URL}/clients/stats/overview`);
     if (!response.ok) {
       throw new Error('Failed to fetch client statistics');
     }
@@ -47,7 +47,7 @@ export const fetchClientStats = createAsyncThunk(
 export const fetchUrgentClients = createAsyncThunk(
   'clients/fetchUrgentClients',
   async (limit = 5) => {
-    const response = await fetch(`${API_URL}/clients/urgent?limit=${limit}`);
+    const response = await fetch(`${API_URL}/clients/urgent/list?limit=${limit}`);
     if (!response.ok) {
       throw new Error('Failed to fetch urgent clients');
     }
@@ -93,16 +93,18 @@ export const updateClientStatus = createAsyncThunk(
   'clients/updateClientStatus',
   async ({ id, status }) => {
     const response = await fetch(`${API_URL}/clients/${id}/status`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ status }),
     });
     if (!response.ok) {
-      throw new Error('Failed to update client status');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update client status');
     }
-    return response.json();
+    const result = await response.json();
+    return result;
   }
 );
 

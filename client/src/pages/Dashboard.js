@@ -17,7 +17,8 @@ import {
 import { 
   fetchTodayViewings,
   fetchUpcomingViewings,
-  fetchViewingStats 
+  fetchViewingStats,
+  createViewing 
 } from '../store/slices/viewingSlice';
 import { loadUser } from '../store/slices/authSlice';
 
@@ -55,32 +56,38 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   
-  const { 
-    properties, 
-    stats: propertyStats, 
-    isLoadingStats: isLoadingPropertyStats,
-    error: propertyError,
-    isLoading: isLoadingProperties
-  } = useSelector((state) => state.properties);
-  
-  const { 
-    clients, 
-    urgentClients,
-    stats: clientStats, 
-    isLoadingStats: isLoadingClientStats 
-  } = useSelector((state) => state.clients);
-  
-  const { 
-    todayViewings,
-    upcomingViewings
-  } = useSelector((state) => state.viewings);
+  // Redux state
+  const { user, isAuthenticated, token } = useSelector(state => state.auth);
+  const { properties, isLoading: isLoadingProperties, error: propertyError, stats: propertyStats } = useSelector(state => state.properties);
+  const { clients, urgentClients, isLoading: isLoadingClients, stats: clientStats } = useSelector(state => state.clients);
+  const { todayViewings, upcomingViewings, isLoading: isLoadingViewings, stats: viewingStats } = useSelector(state => state.viewings);
 
-  const { user, isAuthenticated, token } = useSelector((state) => state.auth);
+  // Debug information - remove this in production
+  console.log('🔍 Dashboard Debug Info:', {
+    isAuthenticated,
+    hasToken: !!token,
+    hasUser: !!user,
+    propertiesCount: properties.length,
+    clientsCount: clients.length,
+    isLoadingProperties,
+    isLoadingClients,
+    isLoadingViewings,
+    propertyError
+  });
 
   const [activeTab, setActiveTab] = useState('overview');
   const [propertyDialog, setPropertyDialog] = useState({ open: false, property: null });
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showPropertyMenu, setShowPropertyMenu] = useState(null);
+  const [viewingDialog, setViewingDialog] = useState({ open: false, client: null });
+  const [viewingForm, setViewingForm] = useState({
+    scheduledDate: '',
+    scheduledTime: '',
+    duration: 60,
+    notes: '',
+    type: 'individual',
+    selectedProperty: ''
+  });
 
   const [propertyForm, setPropertyForm] = useState({
     title: '',
@@ -105,11 +112,10 @@ const Dashboard = () => {
 
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
-    console.log('🔐 Auth state:', { user, isAuthenticated, token: !!token });
-    console.log('📊 Properties state:', { count: properties.length, isLoading: isLoadingProperties, error: propertyError });
-    // Load dashboard data
+    // Load dashboard data only once on mount
     dispatch(loadUser());
     dispatch(fetchPropertyStats());
     dispatch(fetchClientStats());
@@ -120,7 +126,13 @@ const Dashboard = () => {
     dispatch(fetchUrgentClients(5));
     dispatch(fetchTodayViewings());
     dispatch(fetchUpcomingViewings(7));
-  }, [dispatch, user, isAuthenticated, token, properties, isLoadingProperties, propertyError]);
+  }, [dispatch]);
+
+  // Separate effect for logging (doesn't trigger data fetching)
+  useEffect(() => {
+    console.log('🔐 Auth state:', { user, isAuthenticated, token: !!token });
+    console.log('📊 Properties state:', { count: properties.length, isLoading: isLoadingProperties, error: propertyError });
+  }, [user, isAuthenticated, token, properties.length, isLoadingProperties, propertyError]);
 
   const handlePropertyEdit = (property) => {
     setPropertyForm({
@@ -136,6 +148,7 @@ const Dashboard = () => {
     });
     setImageFiles([]);
     setImagePreviews(property.images || []);
+    setFormErrors({}); // Clear any previous errors
     setPropertyDialog({ open: true, property });
     setShowPropertyMenu(null);
   };
@@ -168,41 +181,35 @@ const Dashboard = () => {
 
   const handlePropertySubmit = async (e) => {
     e.preventDefault();
-    console.log('🔥 Property form submitted');
-    console.log('Form data:', propertyForm);
+    
+    // Validate form before submitting
+    if (!validateForm()) {
+      return;
+    }
     
     try {
       const propertyData = {
         ...propertyForm,
         price: parseFloat(propertyForm.price),
-        bedrooms: parseInt(propertyForm.bedrooms),
-        bathrooms: parseInt(propertyForm.bathrooms),
-        area: parseFloat(propertyForm.area),
+        bedrooms: propertyForm.bedrooms ? parseInt(propertyForm.bedrooms) : 0,
+        bathrooms: propertyForm.bathrooms ? parseInt(propertyForm.bathrooms) : 0,
+        area: propertyForm.area ? parseFloat(propertyForm.area) : 0,
         images: imagePreviews, // Use the preview URLs as images for now
       };
 
-      console.log('🚀 Sending property data:', propertyData);
-
       let result;
       if (propertyDialog.property) {
-        console.log('✏️ Updating existing property');
         result = await dispatch(updateProperty({ 
           id: propertyDialog.property._id, 
           propertyData 
         }));
       } else {
-        console.log('➕ Creating new property');
         result = await dispatch(createProperty(propertyData));
       }
       
-      console.log('📡 API Response:', result);
-      
       // Check if the action was successful
       if (result.type.endsWith('/fulfilled')) {
-        console.log('✅ Property saved successfully');
-        
         // Refresh the properties list
-        console.log('🔄 Refreshing properties list');
         await dispatch(fetchProperties({ limit: 10, sort: '-createdAt', agentOnly: true }));
         
         // Close dialog and reset form
@@ -229,11 +236,12 @@ const Dashboard = () => {
         });
         setImageFiles([]);
         setImagePreviews([]);
-        
-        console.log('🎉 Form reset and dialog closed');
+        setFormErrors({});
       } else {
         console.error('❌ Property save failed:', result);
-        alert('Failed to save property. Please check the console for details.');
+        // Extract error message from the result
+        const errorMessage = result.payload?.message || result.error?.message || 'Failed to save property';
+        alert(`Failed to save property: ${errorMessage}`);
       }
     } catch (error) {
       console.error('💥 Error saving property:', error);
@@ -242,91 +250,127 @@ const Dashboard = () => {
   };
 
   const handleClientStatusUpdate = async (clientId, status) => {
-    await dispatch(updateClientStatus({ id: clientId, status }));
-  };
-
-  const testAuthentication = async () => {
-    const token = localStorage.getItem('token');
-    console.log('🔍 Testing authentication...');
-    console.log('Token from localStorage:', token);
+    console.log('🔄 Updating client status:', { clientId, status });
     
-    if (!token) {
-      console.error('❌ No token found in localStorage');
-      alert('No authentication token found. Please log in again.');
-      return;
+    // If changing to viewing_scheduled, show scheduling dialog first
+    if (status === 'viewing_scheduled') {
+      const client = clients.find(c => c._id === clientId);
+      if (client) {
+        setViewingDialog({ open: true, client });
+        setViewingForm({
+          scheduledDate: '',
+          scheduledTime: '',
+          duration: 60,
+          notes: '',
+          type: 'individual',
+          selectedProperty: client.property ? client.property._id : ''
+        });
+        return; // Don't update status yet, wait for viewing to be scheduled
+      }
     }
-
+    
     try {
-      const response = await fetch('http://localhost:5001/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('✅ Authentication successful:', userData);
-        alert('Authentication successful! Check console for details.');
+      const result = await dispatch(updateClientStatus({ id: clientId, status }));
+      
+      if (result.type.endsWith('/fulfilled')) {
+        console.log('✅ Status updated successfully');
+        // Show brief success notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity';
+        notification.textContent = 'Client status updated successfully!';
+        document.body.appendChild(notification);
+        
+        // Remove notification after 2 seconds
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => {
+            document.body.removeChild(notification);
+          }, 300);
+        }, 2000);
+        
+        // Refresh client data to ensure UI is updated
+        await dispatch(fetchClients({ limit: 10, sort: '-createdAt' }));
+        await dispatch(fetchUrgentClients(5));
       } else {
-        console.error('❌ Authentication failed:', response.status, response.statusText);
-        alert('Authentication failed. Please log in again.');
+        console.error('❌ Status update failed:', result);
+        alert(`Failed to update status: ${result.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('💥 Authentication error:', error);
-      alert('Authentication error. Check console for details.');
+      console.error('💥 Error updating client status:', error);
+      alert(`Error updating status: ${error.message}`);
     }
   };
 
-  const testPropertyCreation = async () => {
-    const token = localStorage.getItem('token');
-    console.log('🧪 Testing property creation...');
-    
-    const testProperty = {
-      title: 'Test Property',
-      description: 'This is a test property',
-      price: 100000,
-      type: 'apartment',
-      listingType: 'sale',
-      bedrooms: 2,
-      bathrooms: 1,
-      area: 1000,
-      location: {
-        address: '123 Test Street',
-        city: 'Dubai',
-        state: 'Dubai',
-        zipCode: '12345',
-      },
-      amenities: ['Parking', 'Swimming Pool'],
-      images: ['https://via.placeholder.com/800x600'],
-      featured: false,
-      status: 'active',
-    };
-
+  const handleViewingSubmit = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/properties', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(testProperty),
-      });
+      // Validate form
+      if (!viewingForm.scheduledDate || !viewingForm.scheduledTime) {
+        alert('Please select both date and time for the viewing');
+        return;
+      }
 
-      const responseData = await response.json();
-      console.log('📡 Property creation response:', responseData);
-
-      if (response.ok) {
-        console.log('✅ Property creation successful');
-        alert('Property creation successful! Check console for details.');
-        // Refresh properties
-        dispatch(fetchProperties({ limit: 10, sort: '-createdAt', agentOnly: true }));
+      // Get the property ID from the client's inquiry or selected property
+      let propertyId = null;
+      
+      // Check if client has a property in their inquiry
+      if (viewingDialog.client.property) {
+        propertyId = viewingDialog.client.property;
+      } else if (viewingForm.selectedProperty) {
+        // Use the selected property from the form
+        propertyId = viewingForm.selectedProperty;
       } else {
-        console.error('❌ Property creation failed:', responseData);
-        alert(`Property creation failed: ${responseData.message || 'Unknown error'}`);
+        alert('Please select a property for the viewing');
+        return;
+      }
+
+      // Create the viewing data
+      const viewingData = {
+        property: propertyId,
+        client: viewingDialog.client._id,
+        scheduledDateTime: new Date(`${viewingForm.scheduledDate}T${viewingForm.scheduledTime}`).toISOString(),
+        duration: parseInt(viewingForm.duration),
+        notes: viewingForm.notes,
+        type: viewingForm.type,
+        status: 'scheduled'
+      };
+
+      console.log('📅 Creating viewing with data:', viewingData);
+
+      // Create the viewing
+      const result = await dispatch(createViewing(viewingData));
+      
+      if (result.type.endsWith('/fulfilled')) {
+        // Update client status to viewing_scheduled
+        await dispatch(updateClientStatus({ 
+          id: viewingDialog.client._id, 
+          status: 'viewing_scheduled' 
+        }));
+        
+        // Refresh data
+        await dispatch(fetchClients({ limit: 10, sort: '-createdAt' }));
+        await dispatch(fetchUrgentClients(5));
+        await dispatch(fetchTodayViewings());
+        await dispatch(fetchUpcomingViewings());
+        
+        // Close dialog
+        setViewingDialog({ open: false, client: null });
+        
+        // Show success message
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        notification.textContent = 'Viewing scheduled successfully!';
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.remove();
+        }, 3000);
+      } else {
+        console.error('❌ Failed to create viewing:', result);
+        alert(`Failed to schedule viewing: ${result.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('💥 Property creation error:', error);
-      alert('Property creation error. Check console for details.');
+      console.error('💥 Error scheduling viewing:', error);
+      alert(`Error scheduling viewing: ${error.message}`);
     }
   };
 
@@ -380,17 +424,17 @@ const Dashboard = () => {
   const StatCard = ({ title, value, icon: Icon, color, isLoading }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-gray-900">
             {isLoading ? (
-              <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+              <div className="animate-pulse bg-gray-200 h-8 w-24 rounded"></div>
             ) : (
-              value
+              <span className="break-all">{value}</span>
             )}
           </p>
         </div>
-        <div className={`p-3 rounded-xl ${color}`}>
+        <div className={`p-3 rounded-xl ${color} flex-shrink-0 ml-4`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
       </div>
@@ -466,29 +510,174 @@ const Dashboard = () => {
     </div>
   );
 
+  // Form validation function
+  const validateForm = () => {
+    const errors = {};
+
+    // Title validation
+    if (!propertyForm.title.trim()) {
+      errors.title = 'Property title is required';
+    } else if (propertyForm.title.length < 3) {
+      errors.title = 'Title must be at least 3 characters';
+    } else if (propertyForm.title.length > 100) {
+      errors.title = 'Title cannot exceed 100 characters';
+    }
+
+    // Price validation
+    if (!propertyForm.price) {
+      errors.price = 'Price is required';
+    } else if (parseFloat(propertyForm.price) <= 0) {
+      errors.price = 'Price must be greater than 0';
+    } else if (parseFloat(propertyForm.price) > 100000000) {
+      errors.price = 'Price cannot exceed 100 million AED';
+    }
+
+    // Bedrooms validation
+    if (propertyForm.bedrooms !== '') {
+      const bedrooms = parseInt(propertyForm.bedrooms);
+      if (isNaN(bedrooms) || bedrooms < 0) {
+        errors.bedrooms = 'Bedrooms must be a valid number';
+      } else if (bedrooms > 20) {
+        errors.bedrooms = 'Bedrooms cannot exceed 20';
+      }
+    }
+
+    // Bathrooms validation
+    if (propertyForm.bathrooms !== '') {
+      const bathrooms = parseInt(propertyForm.bathrooms);
+      if (isNaN(bathrooms) || bathrooms < 0) {
+        errors.bathrooms = 'Bathrooms must be a valid number';
+      } else if (bathrooms > 20) {
+        errors.bathrooms = 'Bathrooms cannot exceed 20';
+      }
+    }
+
+    // Area validation
+    if (propertyForm.area !== '') {
+      const area = parseFloat(propertyForm.area);
+      if (isNaN(area) || area <= 0) {
+        errors.area = 'Area must be a valid positive number';
+      } else if (area > 50000) {
+        errors.area = 'Area cannot exceed 50,000 sq ft';
+      }
+    }
+
+    // Location validation
+    if (!propertyForm.location.address.trim()) {
+      errors.address = 'Address is required';
+    }
+    if (!propertyForm.location.city.trim()) {
+      errors.city = 'City is required';
+    }
+    if (!propertyForm.location.state.trim()) {
+      errors.state = 'State is required';
+    }
+
+    // Description validation
+    if (propertyForm.description && propertyForm.description.length > 2000) {
+      errors.description = 'Description cannot exceed 2000 characters';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleAddNewProperty = () => {
+    setPropertyForm({
+      title: '',
+      description: '',
+      price: '',
+      type: 'house',
+      listingType: 'sale',
+      bedrooms: '',
+      bathrooms: '',
+      area: '',
+      location: {
+        address: '',
+        city: '',
+        state: '',
+        zipCode: '',
+      },
+      amenities: [],
+      images: [],
+      featured: false,
+      status: 'active',
+    });
+    setImageFiles([]);
+    setImagePreviews([]);
+    setFormErrors({}); // Clear any previous errors
+    setPropertyDialog({ open: true, property: null });
+  };
+
+  // Real-time validation handlers
+  const handleBedroomsChange = (e) => {
+    const value = e.target.value;
+    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 20)) {
+      setPropertyForm(prev => ({ ...prev, bedrooms: value }));
+      // Clear error if value is now valid
+      if (formErrors.bedrooms && (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 20))) {
+        setFormErrors(prev => ({ ...prev, bedrooms: '' }));
+      }
+    }
+  };
+
+  const handleBathroomsChange = (e) => {
+    const value = e.target.value;
+    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 20)) {
+      setPropertyForm(prev => ({ ...prev, bathrooms: value }));
+      // Clear error if value is now valid
+      if (formErrors.bathrooms && (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 20))) {
+        setFormErrors(prev => ({ ...prev, bathrooms: '' }));
+      }
+    }
+  };
+
+  const handlePriceChange = (e) => {
+    const value = e.target.value;
+    if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 100000000)) {
+      setPropertyForm(prev => ({ ...prev, price: value }));
+      // Clear error if value is now valid
+      if (formErrors.price && value !== '' && parseFloat(value) > 0) {
+        setFormErrors(prev => ({ ...prev, price: '' }));
+      }
+    }
+  };
+
+  const handleAreaChange = (e) => {
+    const value = e.target.value;
+    if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 50000)) {
+      setPropertyForm(prev => ({ ...prev, area: value }));
+      // Clear error if value is now valid
+      if (formErrors.area && value !== '' && parseFloat(value) > 0) {
+        setFormErrors(prev => ({ ...prev, area: '' }));
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Debug Panel - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                <strong>Debug Info:</strong> Auth: {isAuthenticated ? '✅' : '❌'} | 
+                Token: {token ? '✅' : '❌'} | 
+                User: {user?.name || 'None'} | 
+                Properties: {properties.length} | 
+                Clients: {clients.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Agent Dashboard</h1>
           <p className="text-gray-600">Manage your properties, clients, and viewings from one central location</p>
-          
-          {/* Debug buttons */}
-          <div className="flex gap-4 mt-4">
-            <button
-              onClick={testAuthentication}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
-            >
-              🔍 Test Auth
-            </button>
-            <button
-              onClick={testPropertyCreation}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
-            >
-              🧪 Test Property Creation
-            </button>
-          </div>
         </div>
 
         {/* Stats Cards */}
@@ -498,14 +687,14 @@ const Dashboard = () => {
             value={propertyStats?.total || 0}
             icon={HomeIconSolid}
             color="bg-blue-500"
-            isLoading={isLoadingPropertyStats}
+            isLoading={false}
           />
           <StatCard
             title="Active Clients"
             value={clientStats?.totalClients || 0}
             icon={UsersIconSolid}
             color="bg-green-500"
-            isLoading={isLoadingClientStats}
+            isLoading={false}
           />
           <StatCard
             title="Today's Viewings"
@@ -516,10 +705,13 @@ const Dashboard = () => {
           />
           <StatCard
             title="Revenue This Month"
-            value={formatPrice(propertyStats?.averagePrice * (propertyStats?.total || 0) * 0.1 || 0)}
+            value={formatPrice(
+              // Calculate revenue based on average property price * total properties * commission rate (3%)
+              (propertyStats?.averagePrice || 0) * (propertyStats?.total || 0) * 0.03 || 0
+            )}
             icon={TrendingUpIconSolid}
-            color="bg-purple-500"
-            isLoading={isLoadingPropertyStats}
+            color="bg-gradient-to-r from-purple-500 to-purple-600"
+            isLoading={false}
           />
         </div>
 
@@ -669,7 +861,7 @@ const Dashboard = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-gray-900">Property Management</h2>
                   <button
-                    onClick={() => setPropertyDialog({ open: true, property: null })}
+                    onClick={handleAddNewProperty}
                     className="bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                   >
                     <PlusIcon className="w-5 h-5" />
@@ -682,7 +874,7 @@ const Dashboard = () => {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Properties Yet</h3>
                     <p className="text-gray-600 mb-4">Start by adding your first property to manage</p>
                     <button
-                      onClick={() => setPropertyDialog({ open: true, property: null })}
+                      onClick={handleAddNewProperty}
                       className="bg-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
                     >
                       <PlusIcon className="w-5 h-5" />
@@ -800,20 +992,33 @@ const Dashboard = () => {
                     type="text"
                     value={propertyForm.title}
                     onChange={(e) => setPropertyForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.title ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    maxLength={100}
                     required
                   />
+                  {formErrors.title && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.title}</p>
+                  )}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Price (AED)</label>
                   <input
                     type="number"
                     value={propertyForm.price}
-                    onChange={(e) => setPropertyForm(prev => ({ ...prev, price: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={handlePriceChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.price ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    min="1"
+                    max="100000000"
                     required
                   />
+                  {formErrors.price && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.price}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -848,9 +1053,17 @@ const Dashboard = () => {
                   <input
                     type="number"
                     value={propertyForm.bedrooms}
-                    onChange={(e) => setPropertyForm(prev => ({ ...prev, bedrooms: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={handleBedroomsChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.bedrooms ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    min="0"
+                    max="20"
+                    placeholder="0"
                   />
+                  {formErrors.bedrooms && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.bedrooms}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -858,9 +1071,17 @@ const Dashboard = () => {
                   <input
                     type="number"
                     value={propertyForm.bathrooms}
-                    onChange={(e) => setPropertyForm(prev => ({ ...prev, bathrooms: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={handleBathroomsChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.bathrooms ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    min="0"
+                    max="20"
+                    placeholder="0"
                   />
+                  {formErrors.bathrooms && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.bathrooms}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -868,9 +1089,17 @@ const Dashboard = () => {
                   <input
                     type="number"
                     value={propertyForm.area}
-                    onChange={(e) => setPropertyForm(prev => ({ ...prev, area: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={handleAreaChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.area ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    min="1"
+                    max="50000"
+                    placeholder="0"
                   />
+                  {formErrors.area && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.area}</p>
+                  )}
                 </div>
                 
                 <div className="md:col-span-2">
@@ -882,8 +1111,14 @@ const Dashboard = () => {
                       ...prev, 
                       location: { ...prev.location, address: e.target.value }
                     }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.address ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    required
                   />
+                  {formErrors.address && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.address}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -895,8 +1130,14 @@ const Dashboard = () => {
                       ...prev, 
                       location: { ...prev.location, city: e.target.value }
                     }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.city ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    required
                   />
+                  {formErrors.city && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.city}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -908,8 +1149,14 @@ const Dashboard = () => {
                       ...prev, 
                       location: { ...prev.location, state: e.target.value }
                     }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.state ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    required
                   />
+                  {formErrors.state && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.state}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -931,8 +1178,18 @@ const Dashboard = () => {
                     value={propertyForm.description}
                     onChange={(e) => setPropertyForm(prev => ({ ...prev, description: e.target.value }))}
                     rows={4}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      formErrors.description ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    maxLength={2000}
+                    placeholder="Describe the property features, location, and amenities..."
                   />
+                  {formErrors.description && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.description}</p>
+                  )}
+                  <p className="mt-1 text-sm text-gray-500">
+                    {propertyForm.description.length}/2000 characters
+                  </p>
                 </div>
 
                 {/* Image Upload Section */}
@@ -1051,6 +1308,157 @@ const Dashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Viewing Scheduling Dialog */}
+      {viewingDialog.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Schedule Viewing</h2>
+                <button
+                  onClick={() => setViewingDialog({ open: false, client: null })}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Client Info */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-medium text-gray-900 mb-2">Viewing Details</h3>
+                  <p className="text-sm text-gray-600">
+                    <strong>Client:</strong> {viewingDialog.client?.name}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Property:</strong> {viewingDialog.client?.property ? 'From client inquiry' : 'Select below'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Location:</strong> {viewingDialog.client?.location?.city || 'N/A'}
+                  </p>
+                </div>
+
+                {/* Property Selection (if client doesn't have a specific property) */}
+                {!viewingDialog.client?.property && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Property *
+                    </label>
+                    <select
+                      value={viewingForm.selectedProperty || ''}
+                      onChange={(e) => setViewingForm(prev => ({ ...prev, selectedProperty: e.target.value }))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="">Choose a property...</option>
+                      {properties.map(property => (
+                        <option key={property._id} value={property._id}>
+                          {property.title} - {property.location.city} ({property.type})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Date Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Viewing Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={viewingForm.scheduledDate}
+                    onChange={(e) => setViewingForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Time Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Viewing Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={viewingForm.scheduledTime}
+                    onChange={(e) => setViewingForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration (minutes)
+                  </label>
+                  <select
+                    value={viewingForm.duration}
+                    onChange={(e) => setViewingForm(prev => ({ ...prev, duration: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Viewing Type
+                  </label>
+                  <select
+                    value={viewingForm.type}
+                    onChange={(e) => setViewingForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="individual">Individual Viewing</option>
+                    <option value="group">Group Viewing</option>
+                    <option value="virtual">Virtual Viewing</option>
+                    <option value="open_house">Open House</option>
+                  </select>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={viewingForm.notes}
+                    onChange={(e) => setViewingForm(prev => ({ ...prev, notes: e.target.value }))}
+                    rows={3}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Any special instructions or notes for the viewing..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setViewingDialog({ open: false, client: null })}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleViewingSubmit}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Schedule Viewing
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -158,6 +158,32 @@ const Login = () => {
               )}
               
               <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+                {/* Development Helper */}
+                {process.env.NODE_ENV === 'development' && (
+                  <Alert 
+                    severity="info" 
+                    sx={{ 
+                      mb: 3,
+                      borderRadius: 2,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      <strong>Development Mode:</strong> Use test credentials
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        setEmail('agent@proptrack.com');
+                        setPassword('password123');
+                      }}
+                      sx={{ mt: 1 }}
+                    >
+                      Fill Test Credentials
+                    </Button>
+                  </Alert>
+                )}
+                
                 <TextField
                   margin="normal"
                   required

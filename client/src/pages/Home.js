@@ -364,8 +364,8 @@ const Home = () => {
                 <Link
                   to="/dashboard"
                   className="bg-white text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-all duration-300 transform hover:scale-105"
-                >
-                  Go to Dashboard
+            >
+              Go to Dashboard
                 </Link>
                 <Link
                   to="/properties"
@@ -377,7 +377,7 @@ const Home = () => {
             ) : (
               <>
                 <Link
-                  to="/register"
+              to="/register"
                   className="bg-white text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-all duration-300 transform hover:scale-105"
                 >
                   Get Started Free
